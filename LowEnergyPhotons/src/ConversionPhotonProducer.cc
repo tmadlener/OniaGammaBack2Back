@@ -84,13 +84,14 @@ void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup
   }
   iEvent.put(pfPartOutColl, "PFlowPhotons");
 
-  // collect some counting variables
-  m_pfPhotonsCtr.push_back(pfPhotons.size());
-  m_convCtr.push_back(m_convColl->size());
-  m_photonCtr.push_back(m_photonColl->size());
-  m_pfCandCtr.push_back(m_pfCandView->size());
-  double ratio = (double) m_pfPhotonsCtr.back() / (double) m_pfCandCtr.back();
-  m_pfPhotonRatio.push_back(ratio);
+  // process the photons
+  std::auto_ptr<pat::PhotonCollection> patPhotonOutColl(new pat::PhotonCollection);
+  auto photonColl = getPhotons(m_photonColl);
+  for(const auto& photon : photonColl) {
+    // TODO: counter
+    patPhotonOutColl->push_back(photon);
+  }
+  iEvent.put(patPhotonOutColl, "photons");
 
 }
 
@@ -100,10 +101,23 @@ ConversionPhotonProducer::getPFPhotons(const edm::Handle<edm::View<reco::PFCandi
 {
   pat::PFParticleCollection photons;
   for(size_t iCand = 0; iCand < pfCands->size(); ++iCand) {
+    if((*pfCands)[iCand].particleId() != reco::PFCandidate::ParticleType::gamma) continue;
     pat::PFParticle photon( pfCands->refAt(iCand) ); // construct from RefToBase to PFCandidate
     photons.push_back(photon);
   }
   return photons;
+}
+
+// ============================= GET PHOTONS ==============================
+const pat::PhotonCollection
+ConversionPhotonProducer::getPhotons(const edm::Handle<reco::PhotonCollection>& photons)
+{
+  pat::PhotonCollection outPhotons;
+  for(const auto& phot : *photons) {
+    pat::Photon patPhoton(phot);
+    outPhotons.push_back(patPhoton);
+  }
+  return outPhotons;
 }
 
 // ============================== GET CONVERSIONS ==============================
@@ -233,50 +247,6 @@ bool ConversionPhotonProducer::foundCompatibleInnerHits(const reco::HitPattern& 
 
   return false;
 }
-// ============================== PRINT CONVERSION INFO ==============================
-std::string ConversionPhotonProducer::printConversionInfo(const reco::Conversion& conv)
-{
-  std::stringstream str{};
-  str << "pair momentum: " << conv.refittedPairMomentum() << std::endl;
-  str << "invariant mass: " << conv.pairInvariantMass() << std::endl;
-  str << "energy: " << conv.refittedPair4Momentum().E() << std::endl;
-
-  if ( ConversionTools::isGoodConversion(conv, m_beamSpotHand->position()) ) {
-    str << "good conversion\n";
-  } else {
-    unsigned failbits{}; // checking what failed in the check by default settings
-
-    const reco::Vertex& vtx = conv.conversionVertex();
-
-    str << "valid Vertex: " << vtx.isValid() << "\n";
-    str << "fit probability: " << TMath::Prob( vtx.chi2(), vtx.ndof() ) << "\n";
-
-    if(!vtx.isValid()) failbits += 1;
-    if( TMath::Prob( vtx.chi2(), vtx.ndof()) < 1e-6 ) failbits += 2;
-
-    math::XYZVector mom(conv.refittedPairMomentum());
-    double dbsx = vtx.x() - m_beamSpotHand->position().x();
-    double dbsy = vtx.y() - m_beamSpotHand->position().y();
-    double lxy = (mom.x()*dbsx + mom.y()*dbsy)/mom.rho();
-    str << "lxy: " << lxy << "\n";
-    if( lxy < 2.0 ) failbits += 4;
-
-    const std::vector<uint8_t>& nHitsBeforeVtx = conv.nHitsBeforeVtx();
-    std::vector<unsigned int> nHitsVec;
-    for(const auto& hits : nHitsBeforeVtx) { nHitsVec.push_back((unsigned int) hits);}
-    str << "hits before vertex: " << nHitsVec << "\n";
-
-    for(const auto& hits : nHitsBeforeVtx ) {
-      if(hits > 1 ) {
-        failbits += 8;
-        break;
-      }
-    }
-    str << "failbits " << failbits << "\n";
-  }
-
-  return str.str();
-}
 
 // ============================== begin / end Job ==============================
 void ConversionPhotonProducer::beginJob()
@@ -286,14 +256,7 @@ void ConversionPhotonProducer::beginJob()
 void ConversionPhotonProducer::endJob()
 {
   std::cout << "number of conversions: " << m_patConvCtr << std::endl;
-  std::cout << "==================================================" << std::endl;
-  std::cout << "average number of PFCandidates assigned with a photon label " << mean(m_pfPhotonsCtr) << std::endl;
-  std::cout << "average number of PFCandidates " << mean(m_pfCandCtr) << std::endl;
-  std::cout << "average number of conversions " << mean(m_convCtr) << std::endl;
-  std::cout << "average number of photons " << mean(m_photonCtr) << std::endl;
-  std::cout << "mean ratio of PFPhotons in PFCandidates " << mean(m_pfPhotonRatio) << std::endl;
-  std::cout << "average number of overlaps btwn PFCandidates and Photons " << mean(m_pfPhotonOverlapCtr) << std::endl;
-  std::cout << "average number of overlaps btwn PFCandidates and Conversions " << mean(m_pfConversionOverlapCtr) << std::endl;
+  std::cout << "number of PFlow photons: " << m_patPfPartCtr << std::endl;
 }
 
 // ============================== fill descriptions ==============================

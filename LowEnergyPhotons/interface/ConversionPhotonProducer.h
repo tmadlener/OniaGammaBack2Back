@@ -41,6 +41,7 @@
 #include "CommonTools/Utils/interface/StringCutObjectSelector.h"
 #include "DataFormats/PatCandidates/interface/CompositeCandidate.h"
 #include "DataFormats/PatCandidates/interface/PFParticle.h"
+#include "DataFormats/PatCandidates/interface/Photon.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 
 // stl
@@ -62,11 +63,6 @@ private:
   virtual void produce(edm::Event&, const edm::EventSetup&);
   virtual void endJob();
 
-  // virtual void beginRun(edm::Run&, edm::EventSetup const&);
-  // virtual void endRun(edm::Run&, edm::EventSetup const&);
-  // virtual void beginLuminosityBlock(edm::LuminosityBlock&, edm::EventSetup const&);
-  // virtual void endLuminosityBlock(edm::LuminosityBlock&, edm::EventSetup const&);
-
   // ----------member data ---------------------------
   edm::EDGetTokenT<reco::ConversionCollection> m_convCollTok; /**< token to get the ConversionCollection */
   edm::EDGetTokenT<reco::PhotonCollection> m_photonCollTok; /**< token to get the photon collection */
@@ -79,7 +75,6 @@ private:
   reco::Conversion::ConversionAlgorithm m_convAlgo; /**< desired conversion algorithm */
   std::vector<reco::Conversion::ConversionQuality> m_convQualities; /**< desired conversion qualities */
 
-
   // ---------- data handles -------------------------
   edm::Handle<reco::ConversionCollection> m_convColl; /**< handle to the ConversionCollection */
   edm::Handle<reco::PhotonCollection> m_photonColl; /**< handle to the PhotonCollection */
@@ -88,14 +83,6 @@ private:
   edm::Handle<reco::VertexCollection> m_vertexColl; /**< handle to the vertex collection */
 
   // ---------- counter variables ------------------------
-  std::vector<unsigned> m_pfPhotonsCtr{}; /**< count the number of PFCandidates that have the photon particleId assigned */
-  std::vector<unsigned> m_convCtr{}; /**< count the number of Conversions in each event */
-  std::vector<unsigned> m_photonCtr{}; /**< count the number of Photons in each event */
-  std::vector<unsigned> m_pfCandCtr{}; /**< count the nubmer of all PFCandidates in an event */
-  std::vector<double> m_pfPhotonRatio{}; /**< keep track of the ratio of pfPhotons in all PFCandidates */
-  std::vector<size_t> m_pfPhotonOverlapCtr{}; /**< keep track of the number of overlaps between Photons and PFCandidates */
-  std::vector<size_t> m_pfConversionOverlapCtr{}; /**< keep track of the number of overlaps between Conversions and PFCandidates */
-
   unsigned m_patConvCtr{}; /**< counter for created conversions */
   unsigned m_patPfPartCtr{}; /**< counter for created particle flow particles */
 
@@ -103,8 +90,8 @@ private:
   /** get all ParticleFlow candidates with particleId 'gamma' from the passed PFCandidateCollection */
   const pat::PFParticleCollection getPFPhotons(const edm::Handle<edm::View<reco::PFCandidate> >& pfCands);
 
-  // /** create a PFParticle Collection from the PFCandidates */
-  // const pat::PFParticleCollection createPFParticles(const reco::PFCandidateCollection& pfCands);
+  /** collect all reco::Photons and create pat::Photons from them */
+  const pat::PhotonCollection getPhotons(const edm::Handle<reco::PhotonCollection>& photons);
 
   /** collect all conversions and put them into a CompositeCandidateCollection and add some additional info */
   const pat::CompositeCandidateCollection getConversions(const edm::Handle<reco::ConversionCollection>& convs);
@@ -143,14 +130,6 @@ private:
   /** check if the tracks of the conversion are compatible with one of the primary vertices. */
   bool checkTkVtxCompatibility(const reco::Conversion& conv) const;
 
-  // /** get the number of photons that are in the PhotonCollection and in the PFCandidateCollection */
-  // size_t getNOverlaps(const reco::PFCandidateCollection& pfCands, const reco::PhotonCollection& photons);
-
-  // /** get the number of photons that are in the ConversionCollection and in the PFCandidateCollection */
-  // size_t getNOverlaps(const reco::PFCandidateCollection& pfCands, const reco::ConversionCollection& conversions);
-
-  /** print available information of a conversion */
-  std::string printConversionInfo(const reco::Conversion& conversion);
 };
 
 //
