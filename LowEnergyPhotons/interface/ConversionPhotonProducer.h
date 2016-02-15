@@ -40,6 +40,7 @@
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
 #include "CommonTools/Utils/interface/StringCutObjectSelector.h"
 #include "DataFormats/PatCandidates/interface/CompositeCandidate.h"
+#include "DataFormats/PatCandidates/interface/PFParticle.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 
 // stl
@@ -69,7 +70,7 @@ private:
   // ----------member data ---------------------------
   edm::EDGetTokenT<reco::ConversionCollection> m_convCollTok; /**< token to get the ConversionCollection */
   edm::EDGetTokenT<reco::PhotonCollection> m_photonCollTok; /**< token to get the photon collection */
-  edm::EDGetTokenT<reco::PFCandidateCollection> m_pfCandCollTok; /**< token to get the pf candidate collection */
+  edm::EDGetTokenT<edm::View<reco::PFCandidate> > m_pfCandViewTok; /**< token to get the pf candidate view */
   edm::EDGetTokenT<reco::BeamSpot> m_beamSpotTok; /**< token to get the beamspot */
   edm::EDGetTokenT<reco::VertexCollection> m_vertexCollTok; /**< token to get the vertex collection */
   StringCutObjectSelector<reco::Conversion> m_conversionCutSel; /**< string cut selector for conversions */
@@ -82,7 +83,7 @@ private:
   // ---------- data handles -------------------------
   edm::Handle<reco::ConversionCollection> m_convColl; /**< handle to the ConversionCollection */
   edm::Handle<reco::PhotonCollection> m_photonColl; /**< handle to the PhotonCollection */
-  edm::Handle<reco::PFCandidateCollection> m_pfCandColl; /**< handle to th PFCandidateCollection */
+  edm::Handle<edm::View<reco::PFCandidate> > m_pfCandView; /**< handle to the PFCandidates (view) */
   edm::Handle<reco::BeamSpot> m_beamSpotHand; /**< handle to the beamspot */
   edm::Handle<reco::VertexCollection> m_vertexColl; /**< handle to the vertex collection */
 
@@ -95,11 +96,15 @@ private:
   std::vector<size_t> m_pfPhotonOverlapCtr{}; /**< keep track of the number of overlaps between Photons and PFCandidates */
   std::vector<size_t> m_pfConversionOverlapCtr{}; /**< keep track of the number of overlaps between Conversions and PFCandidates */
 
-  unsigned m_patConvCtr{};
+  unsigned m_patConvCtr{}; /**< counter for created conversions */
+  unsigned m_patPfPartCtr{}; /**< counter for created particle flow particles */
 
   // --------- private member functions --------------
   /** get all ParticleFlow candidates with particleId 'gamma' from the passed PFCandidateCollection */
-  const reco::PFCandidateCollection getPFPhotons(const edm::Handle<reco::PFCandidateCollection>& pfCands);
+  const pat::PFParticleCollection getPFPhotons(const edm::Handle<edm::View<reco::PFCandidate> >& pfCands);
+
+  // /** create a PFParticle Collection from the PFCandidates */
+  // const pat::PFParticleCollection createPFParticles(const reco::PFCandidateCollection& pfCands);
 
   /** collect all conversions and put them into a CompositeCandidateCollection and add some additional info */
   const pat::CompositeCandidateCollection getConversions(const edm::Handle<reco::ConversionCollection>& convs);
@@ -134,7 +139,7 @@ private:
 
   /** TODO: documentation */
   bool foundCompatibleInnerHits(const reco::HitPattern& hitPatA, const reco::HitPattern& hitPatB) const;
-  
+
   /** check if the tracks of the conversion are compatible with one of the primary vertices. */
   bool checkTkVtxCompatibility(const reco::Conversion& conv) const;
 

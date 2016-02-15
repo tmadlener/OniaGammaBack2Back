@@ -30,7 +30,7 @@
 ConversionPhotonProducer::ConversionPhotonProducer(const edm::ParameterSet& iConfig) :
   m_convCollTok( consumes<reco::ConversionCollection>(iConfig.getParameter<edm::InputTag>("conversions")) ),
   m_photonCollTok( consumes<reco::PhotonCollection>(iConfig.getParameter<edm::InputTag>("allPhotons")) ),
-  m_pfCandCollTok( consumes<reco::PFCandidateCollection>(iConfig.getParameter<edm::InputTag>("pfcandidates")) ),
+  m_pfCandViewTok( consumes<edm::View<reco::PFCandidate> >(iConfig.getParameter<edm::InputTag>("pfcandidates"))  ),
   m_beamSpotTok( consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamspot")) ),
   m_vertexCollTok( consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("primaryVtxTag")) ),
   m_conversionCutSel( iConfig.getParameter<std::string>("convSelection") ),
@@ -62,39 +62,46 @@ void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup
   // get the data to the handles (COULDDO: put this into a separate function?)
   iEvent.getByToken(m_convCollTok, m_convColl);
   iEvent.getByToken(m_photonCollTok, m_photonColl);
-  iEvent.getByToken(m_pfCandCollTok, m_pfCandColl);
+  iEvent.getByToken(m_pfCandViewTok, m_pfCandView);
   iEvent.getByToken(m_beamSpotTok, m_beamSpotHand);
   iEvent.getByToken(m_vertexCollTok, m_vertexColl);
 
   // process the conversions
   std::auto_ptr<pat::CompositeCandidateCollection> patConvOutColl(new pat::CompositeCandidateCollection);
   auto convColl = getConversions(m_convColl); // need this to be able to modify the elements of the vector
-  for(auto& patConv : convColl) {
+  for(const auto& patConv : convColl) {
     m_patConvCtr++;
-    // annotate(patConv);
     patConvOutColl->push_back(patConv);
   }
   iEvent.put(patConvOutColl, "convertedPhotons");
 
-  const reco::PFCandidateCollection pfPhotons = getPFPhotons(m_pfCandColl);
+  // process the PFCandidates
+  std::auto_ptr<pat::PFParticleCollection> pfPartOutColl(new pat::PFParticleCollection);
+  const pat::PFParticleCollection pfPhotons = getPFPhotons(m_pfCandView);
+  for(const auto& pfPhoton : pfPhotons) {
+    m_patPfPartCtr++;
+    pfPartOutColl->push_back(pfPhoton);
+  }
+  iEvent.put(pfPartOutColl, "PFlowPhotons");
 
   // collect some counting variables
   m_pfPhotonsCtr.push_back(pfPhotons.size());
   m_convCtr.push_back(m_convColl->size());
   m_photonCtr.push_back(m_photonColl->size());
-  m_pfCandCtr.push_back(m_pfCandColl->size());
+  m_pfCandCtr.push_back(m_pfCandView->size());
   double ratio = (double) m_pfPhotonsCtr.back() / (double) m_pfCandCtr.back();
   m_pfPhotonRatio.push_back(ratio);
 
 }
 
 // ============================== GET PFPHOTONS ==============================
-const reco::PFCandidateCollection
-ConversionPhotonProducer::getPFPhotons(const edm::Handle<reco::PFCandidateCollection>& pfCands)
+const pat::PFParticleCollection
+ConversionPhotonProducer::getPFPhotons(const edm::Handle<edm::View<reco::PFCandidate> >& pfCands)
 {
-  reco::PFCandidateCollection photons;
-  for(const auto& cand : *pfCands) {
-    if(cand.particleId() == reco::PFCandidate::ParticleType::gamma) { photons.push_back(cand); }
+  pat::PFParticleCollection photons;
+  for(size_t iCand = 0; iCand < pfCands->size(); ++iCand) {
+    pat::PFParticle photon( pfCands->refAt(iCand) ); // construct from RefToBase to PFCandidate
+    photons.push_back(photon);
   }
   return photons;
 }
@@ -209,7 +216,7 @@ bool ConversionPhotonProducer::checkCompatibleInnerHits(const reco::Conversion& 
 bool ConversionPhotonProducer::foundCompatibleInnerHits(const reco::HitPattern& hitPatA, const reco::HitPattern& hitPatB) const
 {
   reco::HitPattern::HitCategory tkHits = reco::HitPattern::HitCategory::TRACK_HITS;
-  
+
   size_t count{};
   uint32_t oldSubStr{};
   for(int iHit = 0; iHit < hitPatA.numberOfHits(tkHits) && count < 2; ++iHit) {
@@ -219,7 +226,7 @@ bool ConversionPhotonProducer::foundCompatibleInnerHits(const reco::HitPattern& 
     if(hitPatA.getSubStructure(hitA) == oldSubStr && hitPatA.getLayer(hitA) == oldSubStr) continue;
 
     if(hitPatB.getTrackerMonoStereo(tkHits, hitPatA.getSubStructure(hitA), hitPatA.getLayer(hitA))) return true;
-    
+
     oldSubStr = hitPatA.getSubStructure(hitA);
     count++;
   }
