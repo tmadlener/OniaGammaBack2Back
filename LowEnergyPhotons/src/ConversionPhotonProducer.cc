@@ -12,6 +12,7 @@
 #include "DataFormats/TrackReco/interface/TrackBase.h"
 
 #include "RecoEgamma/EgammaTools/interface/ConversionTools.h"
+#include "CommonTools/Statistics/interface/ChiSquaredProbability.h"
 
 // root stuff
 #include <TMath.h>
@@ -33,8 +34,15 @@ ConversionPhotonProducer::ConversionPhotonProducer(const edm::ParameterSet& iCon
   m_pfCandViewTok( consumes<edm::View<reco::PFCandidate> >(iConfig.getParameter<edm::InputTag>("pfcandidates"))  ),
   m_beamSpotTok( consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamspot")) ),
   m_vertexCollTok( consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("primaryVtxTag")) ),
-  m_conversionCutSel( iConfig.getParameter<std::string>("convSelection") ),
-  m_TkVtxCompSigma( iConfig.getParameter<double>("tkVtxCompSigma"))
+  m_conversionCutSel(iConfig.getParameter<std::string>("convSelection")),
+  m_pfCandCutSel(iConfig.getParameter<std::string>("pfCandSelection")),
+  m_photonCutSel(iConfig.getParameter<std::string>("photonSelection")),
+  m_TkVtxCompSigma(iConfig.getParameter<double>("tkVtxCompSigma")),
+  m_vertexChi2ProbCut(iConfig.getParameter<double>("vertexChi2ProbCut")),
+  m_trackChi2Cut(iConfig.getParameter<double>("trackChi2Cut")),
+  m_minDistanceOfApproachMinCut(iConfig.getParameter<double>("minDistanceOfApproachMinCut")),
+  m_minDistanceOfApproachMaxCut(iConfig.getParameter<double>("minDistanceOfApproachMaxCut")),
+  m_trackMinNDOF(iConfig.getParameter<double>("trackMinNDOF"))
 {
   std::string algo = iConfig.getParameter<std::string>("convAlgorithm");
   // convert the returned int into the enum-value in the constructor to avoid having to do it later
@@ -88,7 +96,7 @@ void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup
   std::auto_ptr<pat::PhotonCollection> patPhotonOutColl(new pat::PhotonCollection);
   auto photonColl = getPhotons(m_photonColl);
   for(const auto& photon : photonColl) {
-    // TODO: counter
+    m_photonCtr++;
     patPhotonOutColl->push_back(photon);
   }
   iEvent.put(patPhotonOutColl, "photons");
@@ -101,8 +109,10 @@ ConversionPhotonProducer::getPFPhotons(const edm::Handle<edm::View<reco::PFCandi
 {
   pat::PFParticleCollection photons;
   for(size_t iCand = 0; iCand < pfCands->size(); ++iCand) {
-    if((*pfCands)[iCand].particleId() != reco::PFCandidate::ParticleType::gamma) continue;
+    const auto& cand = (*pfCands)[iCand];
+    if(cand.particleId() != reco::PFCandidate::ParticleType::gamma) continue;
     pat::PFParticle photon( pfCands->refAt(iCand) ); // construct from RefToBase to PFCandidate
+    annotate(photon, cand);
     photons.push_back(photon);
   }
   return photons;
@@ -115,6 +125,7 @@ ConversionPhotonProducer::getPhotons(const edm::Handle<reco::PhotonCollection>& 
   pat::PhotonCollection outPhotons;
   for(const auto& phot : *photons) {
     pat::Photon patPhoton(phot);
+    annotate(patPhoton, phot);
     outPhotons.push_back(patPhoton);
   }
   return outPhotons;
@@ -150,23 +161,18 @@ ConversionPhotonProducer::makePhotonCandidate(const reco::Conversion& conversion
   return candidate;
 }
 
-// ============================== ANNOTATE CONVERSION ==============================
-void ConversionPhotonProducer::annotate(pat::CompositeCandidate& patConv, const reco::Conversion& recConv) const
+// ============================== ANNOTATE PAT CANDIDATE  ==============================
+template<typename PatType, typename RecoType>
+void ConversionPhotonProducer::annotate(PatType& patPart, const RecoType& recoPart) const
 {
-  patConv.addUserInt("photon-number", m_patConvCtr); // probably use-less but still for checking its nice
-
-  const unsigned short nFlags = 10; // defined at prominent place for dev (10 should be enough right now)
-  std::bitset<nFlags> flags; // create a bitset with all flags set to false
-  // set all the flags for this conversion
-  for(const auto& bit : getConversionFlagBits(recConv) ) flags.set(bit);
-  patConv.addUserInt("flags", flags.to_ulong());
-
-  // dev output
-  std::cout << "annotate_flags " << flags << " " << flags.to_ulong() << std::endl;
+  const unsigned short nFlags = 10;
+  std::bitset<nFlags> flags;
+  for (const auto& bit : getFlagBits(recoPart)) flags.set(bit);
+  patPart.addUserInt("flags", flags.to_ulong());
 }
 
 // ============================== GET CONVERSION FLAG BITS ==============================
-const std::vector<unsigned short> ConversionPhotonProducer::getConversionFlagBits(const reco::Conversion& conv) const
+const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const reco::Conversion& conv) const
 {
   std::vector<unsigned short> flagBits;
   if(!m_conversionCutSel(conv)) flagBits.push_back(0);
@@ -180,7 +186,24 @@ const std::vector<unsigned short> ConversionPhotonProducer::getConversionFlagBit
   } else {
     flagBits.push_back(3); flagBits.push_back(4);
   }
+  if(!checkHighPuritySubset(conv, *m_vertexColl.product())) flagBits.push_back(5);
   // TODO pi0 stuff
+
+  return flagBits;
+}
+
+const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const reco::Photon& photon) const
+{
+  std::vector<unsigned short> flagBits;
+  if(!m_photonCutSel(photon)) flagBits.push_back(0);
+
+  return flagBits;
+}
+
+const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const reco::PFCandidate& pfCand) const
+{
+  std::vector<unsigned short> flagBits;
+  if(!m_pfCandCutSel(pfCand)) flagBits.push_back(0);
 
   return flagBits;
 }
@@ -248,6 +271,36 @@ bool ConversionPhotonProducer::foundCompatibleInnerHits(const reco::HitPattern& 
   return false;
 }
 
+// ============================== CHECK HIGH PURITY SUBSET ==============================
+bool ConversionPhotonProducer::checkHighPuritySubset(const reco::Conversion& conv, const reco::VertexCollection& vtxColl) const
+{
+  if(ChiSquaredProbability(conv.conversionVertex().chi2(), conv.conversionVertex().ndof()) < m_vertexChi2ProbCut) {
+    return false;
+  }
+
+  size_t clVtxIdx = 0; // index of closest vertex to the conversion
+  for(size_t iVtx = 0; iVtx < vtxColl.size(); ++iVtx) {
+    if (conv.zOfPrimaryVertexFromTracks(vtxColl[iVtx].position()) <
+        conv.zOfPrimaryVertexFromTracks(vtxColl[clVtxIdx].position()) ) {
+      clVtxIdx = iVtx;
+    }
+  }
+
+  for(const auto& trackRef : conv.tracks()) {
+    // check the impact parameter w.r.t. the closest vertex found prior
+    if (-trackRef->dxy(vtxColl[clVtxIdx].position()) * trackRef->charge() / trackRef->dxyError() < 0) return false;
+    // chi2 of single tracks
+    if (trackRef->normalizedChi2() > m_trackChi2Cut) return false;
+    // dof freedom of single tracks
+    if (trackRef->ndof() < m_trackMinNDOF) return false;
+  }
+
+  double minApp = conv.distOfMinimumApproach();
+  if (minApp < m_minDistanceOfApproachMinCut || minApp > m_minDistanceOfApproachMaxCut) return false;
+
+  return true;
+}
+
 // ============================== begin / end Job ==============================
 void ConversionPhotonProducer::beginJob()
 {
@@ -257,6 +310,7 @@ void ConversionPhotonProducer::endJob()
 {
   std::cout << "number of conversions: " << m_patConvCtr << std::endl;
   std::cout << "number of PFlow photons: " << m_patPfPartCtr << std::endl;
+  std::cout << "number of Photons: " << m_photonCtr << std::endl;
 }
 
 // ============================== fill descriptions ==============================

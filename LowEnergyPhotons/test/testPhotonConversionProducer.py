@@ -67,6 +67,13 @@ process.OGB2BPhotonProducer = cms.EDProducer('ConversionPhotonProducer',
                 convAlgorithm = cms.string('undefined'),
                 convQuality = cms.vstring(['highPurity', 'generalTracksOnly']),
                 tkVtxCompSigma = cms.double(5.0),
+                pfCandSelection = cms.string(''),
+                photonSelection = cms.string(''),
+                vertexChi2ProbCut = cms.double(0.0005),
+                trackChi2Cut = cms.double(10),
+                trackMinNDOF = cms.double(3.),
+                minDistanceOfApproachMaxCut = cms.double(1.00),
+                minDistanceOfApproachMinCut = cms.double(-0.25),
 )
 
 process.p = cms.Path(process.OGB2BPhotonProducer)
@@ -81,7 +88,7 @@ process.onia2MuMuPAT.beamSpotTag=cms.InputTag('offlineBeamSpot')
 
 process.onia2MuMuPATCounter = cms.EDFilter('CandViewCountFilter',
       src = cms.InputTag('OGB2BPhotonProducer', 'convertedPhotons'),
-      minNumber = cms.uint32(1),
+      minNumber = cms.uint32(0),
       filter = cms.bool(True)
    )
 

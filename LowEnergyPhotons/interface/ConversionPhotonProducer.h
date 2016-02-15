@@ -70,7 +70,14 @@ private:
   edm::EDGetTokenT<reco::BeamSpot> m_beamSpotTok; /**< token to get the beamspot */
   edm::EDGetTokenT<reco::VertexCollection> m_vertexCollTok; /**< token to get the vertex collection */
   StringCutObjectSelector<reco::Conversion> m_conversionCutSel; /**< string cut selector for conversions */
+  StringCutObjectSelector<reco::PFCandidate> m_pfCandCutSel; /**< string cut selector for PFCandidates */
+  StringCutObjectSelector<reco::Photon> m_photonCutSel; /**< string cut selector for reco::Photons */
   double m_TkVtxCompSigma; /**< standard deviations in distance in z a track can be displaced to a vertex for compatiblity */
+  double m_vertexChi2ProbCut; /**< chi2 probability cut that has to be fullfilled by the conversion vertex */
+  double m_trackChi2Cut; /**< chi2 value cut for each of the tracks of the conversion */
+  double m_minDistanceOfApproachMinCut; /**< min cut for the distance of minimum approach for the conversion */
+  double m_minDistanceOfApproachMaxCut; /**< max cut for the distance of minimum approach for the conversion */
+  double m_trackMinNDOF; /**< minimum numbers of degree of freedom for each of the tracks of the conversion */
 
   reco::Conversion::ConversionAlgorithm m_convAlgo; /**< desired conversion algorithm */
   std::vector<reco::Conversion::ConversionQuality> m_convQualities; /**< desired conversion qualities */
@@ -85,6 +92,7 @@ private:
   // ---------- counter variables ------------------------
   unsigned m_patConvCtr{}; /**< counter for created conversions */
   unsigned m_patPfPartCtr{}; /**< counter for created particle flow particles */
+  unsigned m_photonCtr{}; /**< counter for created pat::Photons */
 
   // --------- private member functions --------------
   /** get all ParticleFlow candidates with particleId 'gamma' from the passed PFCandidateCollection */
@@ -104,8 +112,9 @@ private:
     return reco::Candidate::LorentzVector(v.x(), v.y(), v.z(), v.t());
   }
 
-  /** add some flag stuff to the pat::CompositeCandidate */
-  void annotate(pat::CompositeCandidate& patConv, const reco::Conversion& recoConv) const;
+  /** add some flags to the pat Particle using data from the reco Particle */
+  template<typename PatType, typename RecoType>
+  void annotate(PatType& patPart, const RecoType& recoPart) const;
 
   /** check if the conversion candidate has all desired quality flags */
   bool checkConversionQuality(const reco::Conversion& conv) const
@@ -117,7 +126,13 @@ private:
   }
 
   /** get the bits that have to be set to true for the conversion for storing the bitset */
-  const std::vector<unsigned short> getConversionFlagBits(const reco::Conversion& conv) const;
+  const std::vector<unsigned short> getFlagBits(const reco::Conversion& conv) const;
+
+  /** get the bits that have to be set to true for the photon for storing the bitset */
+  const std::vector<unsigned short> getFlagBits(const reco::Photon& photon) const;
+
+  /** get the bits that have to be set to true for the pfCandidate for storing the bitset */
+  const std::vector<unsigned short> getFlagBits(const reco::PFCandidate& pfCand) const;
 
   /** check the compatibility of inner hits (i.e. hits closer to the beamspot than the vertex).
    * TODO: CHECK IF THIS IS WHAT IS ACTUALLY DONE HERE
@@ -129,6 +144,11 @@ private:
 
   /** check if the tracks of the conversion are compatible with one of the primary vertices. */
   bool checkTkVtxCompatibility(const reco::Conversion& conv) const;
+
+  /** check if the conversion is follows a high purity definition
+   * parameters used: trackMinNDOF, trackChi2Cut, vertexChi2ProbCut, minDistanceOfApproach[Min|Max]Cut
+   */
+  bool checkHighPuritySubset(const reco::Conversion& conv, const reco::VertexCollection& vtxs) const;
 
 };
 
