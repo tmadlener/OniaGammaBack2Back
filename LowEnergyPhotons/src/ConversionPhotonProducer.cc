@@ -21,11 +21,11 @@
 #include <vector>
 #include <typeinfo>
 #include <sstream>
-#include <bitset>
 #include <map>
 
 // helper stuff for dev
 #include "/afs/hephy.at/user/t/tmadlener/snippets/vector_stuff.h"
+#include "/afs/hephy.at/user/t/tmadlener/snippets/type_deduction_helper.h"
 
 // ============================== constructor / destructor ==============================
 ConversionPhotonProducer::ConversionPhotonProducer(const edm::ParameterSet& iConfig) :
@@ -42,7 +42,9 @@ ConversionPhotonProducer::ConversionPhotonProducer(const edm::ParameterSet& iCon
   m_trackChi2Cut(iConfig.getParameter<double>("trackChi2Cut")),
   m_minDistanceOfApproachMinCut(iConfig.getParameter<double>("minDistanceOfApproachMinCut")),
   m_minDistanceOfApproachMaxCut(iConfig.getParameter<double>("minDistanceOfApproachMaxCut")),
-  m_trackMinNDOF(iConfig.getParameter<double>("trackMinNDOF"))
+  m_trackMinNDOF(iConfig.getParameter<double>("trackMinNDOF")),
+  m_pi0NarrowWindow(iConfig.getParameter<std::vector<double> >("pi0NarrowWindow")),
+  m_pi0WideWindow(iConfig.getParameter<std::vector<double> >("pi0WideWindow"))
 {
   std::string algo = iConfig.getParameter<std::string>("convAlgorithm");
   // convert the returned int into the enum-value in the constructor to avoid having to do it later
@@ -76,7 +78,7 @@ void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup
 
   // process the conversions
   std::auto_ptr<pat::CompositeCandidateCollection> patConvOutColl(new pat::CompositeCandidateCollection);
-  auto convColl = getConversions(m_convColl); // need this to be able to modify the elements of the vector
+  const auto convColl = getConversions(m_convColl);
   for(const auto& patConv : convColl) {
     m_patConvCtr++;
     patConvOutColl->push_back(patConv);
@@ -85,10 +87,10 @@ void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup
 
   // process the PFCandidates
   std::auto_ptr<pat::PFParticleCollection> pfPartOutColl(new pat::PFParticleCollection);
-  const pat::PFParticleCollection pfPhotons = getPFPhotons(m_pfCandView);
+  pat::PFParticleCollection pfPhotons = getPFPhotons(m_pfCandView);
   for(const auto& pfPhoton : pfPhotons) {
-    m_patPfPartCtr++;
-    pfPartOutColl->push_back(pfPhoton);
+      m_patPfPartCtr++;
+      pfPartOutColl->push_back(pfPhoton);
   }
   iEvent.put(pfPartOutColl, "PFlowPhotons");
 
@@ -100,7 +102,6 @@ void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup
     patPhotonOutColl->push_back(photon);
   }
   iEvent.put(patPhotonOutColl, "photons");
-
 }
 
 // ============================== GET PFPHOTONS ==============================
@@ -111,8 +112,10 @@ ConversionPhotonProducer::getPFPhotons(const edm::Handle<edm::View<reco::PFCandi
   for(size_t iCand = 0; iCand < pfCands->size(); ++iCand) {
     const auto& cand = (*pfCands)[iCand];
     if(cand.particleId() != reco::PFCandidate::ParticleType::gamma) continue;
+    bitsetT flags;
+    for (const auto bit : getFlagBits(cand)) flags.set(bit);
     pat::PFParticle photon( pfCands->refAt(iCand) ); // construct from RefToBase to PFCandidate
-    annotate(photon, cand);
+    annotate(photon, AnnotatedT<const reco::PFCandidate>(&cand, flags));
     photons.push_back(photon);
   }
   return photons;
@@ -125,9 +128,12 @@ ConversionPhotonProducer::getPhotons(const edm::Handle<reco::PhotonCollection>& 
   pat::PhotonCollection outPhotons;
   for(const auto& phot : *photons) {
     pat::Photon patPhoton(phot);
-    annotate(patPhoton, phot);
+    bitsetT flags;
+    for (const auto bit : getFlagBits(phot)) flags.set(bit);
+    annotate(patPhoton, AnnotatedT<const reco::Photon>(&phot, flags));
     outPhotons.push_back(patPhoton);
   }
+
   return outPhotons;
 }
 
@@ -136,11 +142,26 @@ const pat::CompositeCandidateCollection
 ConversionPhotonProducer::getConversions(const edm::Handle<reco::ConversionCollection>& conversions)
 {
   pat::CompositeCandidateCollection collection;
+  std::vector<AnnotatedT<const reco::Conversion> > convCands;
 
+  // collect the flags for all conversions
   for(const auto& conv : *conversions) {
-    pat::CompositeCandidate cand = makePhotonCandidate(conv);
-    annotate(cand, conv);
-    collection.push_back(cand);
+    bitsetT flags;
+    for (const auto bit : getFlagBits(conv)) flags.set(bit);
+    convCands.push_back( AnnotatedT<const reco::Conversion>(&conv, flags) );
+  }
+
+  // remove the undesired conversions before further processing
+  bitsetT convFlags; convFlags.set(2); convFlags.set(0); convFlags.set(4);
+  removeFlagged(convCands, convFlags);
+
+  checkTrackSharing(convCands);
+
+  for(const auto& conv : convCands) {
+    if (conv.flags.test(7)) continue; // do not store overlapping conversion
+    auto patCand = makePhotonCandidate(conv);
+    annotate(patCand, conv);
+    collection.push_back(patCand);
   }
 
   return collection;
@@ -148,27 +169,17 @@ ConversionPhotonProducer::getConversions(const edm::Handle<reco::ConversionColle
 
 // ============================== MAKE PHOTON CANDIDATE ==============================
 pat::CompositeCandidate
-ConversionPhotonProducer::makePhotonCandidate(const reco::Conversion& conversion)
+ConversionPhotonProducer::makePhotonCandidate(const AnnotatedT<const reco::Conversion>& conversion)
 {
   pat::CompositeCandidate candidate;
-  candidate.setP4( convertVector(conversion.refittedPair4Momentum()) );
-  candidate.setVertex( conversion.conversionVertex().position() );
+  candidate.setP4( convertVector(conversion.object->refittedPair4Momentum()) );
+  candidate.setVertex( conversion.object->conversionVertex().position() );
 
-  const auto& convTracks = conversion.tracks();
+  const auto& convTracks = conversion.object->tracks();
   candidate.addUserData<reco::Track>("track0", *convTracks[0]);
   candidate.addUserData<reco::Track>("track1", *convTracks[1]);
 
   return candidate;
-}
-
-// ============================== ANNOTATE PAT CANDIDATE  ==============================
-template<typename PatType, typename RecoType>
-void ConversionPhotonProducer::annotate(PatType& patPart, const RecoType& recoPart) const
-{
-  const unsigned short nFlags = 10;
-  std::bitset<nFlags> flags;
-  for (const auto& bit : getFlagBits(recoPart)) flags.set(bit);
-  patPart.addUserInt("flags", flags.to_ulong());
 }
 
 // ============================== GET CONVERSION FLAG BITS ==============================
@@ -187,7 +198,6 @@ const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const re
     flagBits.push_back(3); flagBits.push_back(4);
   }
   if(!checkHighPuritySubset(conv, *m_vertexColl.product())) flagBits.push_back(5);
-  // TODO pi0 stuff
 
   return flagBits;
 }
@@ -299,6 +309,64 @@ bool ConversionPhotonProducer::checkHighPuritySubset(const reco::Conversion& con
   if (minApp < m_minDistanceOfApproachMinCut || minApp > m_minDistanceOfApproachMaxCut) return false;
 
   return true;
+}
+
+// ============================== SET FLAGS ==============================
+template<typename patType>
+void ConversionPhotonProducer::setFlags(patType& patCand, const bitsetT& flags)
+{
+  patCand.addUserInt("flags", flags.to_ulong());
+}
+
+// ============================== CHECK TRACK SHARING ==============================
+void ConversionPhotonProducer::checkTrackSharing(std::vector<AnnotatedT<const reco::Conversion> >& convs)
+{
+  if(convs.size() < 2) return; // no purpose in checking if there is only one conversion
+
+  auto convLessChi2 = [](const AnnotatedT<const reco::Conversion>& c1, const AnnotatedT<const reco::Conversion>& c2)
+    {return TMath::Prob(c1.object->conversionVertex().chi2(), c1.object->conversionVertex().ndof()) >
+     TMath::Prob(c2.object->conversionVertex().chi2(), c2.object->conversionVertex().ndof());};
+
+  std::sort(convs.begin(), convs.end(), convLessChi2); // sort by chi2 values of track vertices
+
+  auto commonTrack = [](const AnnotatedT<const reco::Conversion>&c1, const AnnotatedT<const reco::Conversion>& c2)
+    {
+      for(const auto& tk1 : c1.object->tracks()) {
+        for(const auto& tk2 : c2.object->tracks()) {
+          if(tk1 == tk2) { return true;}
+        }
+      }
+     return false;
+    };
+
+  for(size_t iCa = 0; iCa < convs.size() - 1; ++iCa) {
+    for(size_t iCb = iCa + 1; iCb < convs.size(); ++iCb) {
+      if(commonTrack(convs[iCa], convs[iCb])) {
+        convs[iCb].flags.set(7); // set bit 7
+      }
+    }
+  }
+}
+
+
+template<typename RecoType>
+void ConversionPhotonProducer::removeFlagged(std::vector<AnnotatedT<const RecoType> >& coll, const bitsetT& flags)
+{
+  if (coll.empty()) return;
+  std::cout << "flags: " << flags << std::endl;
+  auto collIt = coll.cbegin();
+  while (collIt != coll.cend()) {
+    std::cout << "checkRemove: " << (flags & collIt->flags) << " -> ";
+    if ( (flags & collIt->flags).any() ) {
+      std::cout << "removing element " << std::distance(coll.cbegin(), collIt) << " of " << coll.size() << "/";
+      collIt = coll.erase(collIt);
+      std::cout << coll.size() << std::endl;
+    }
+    else {
+      ++collIt;
+      std::cout << " increasing iterator to " << std::distance(coll.cbegin(), collIt) << " of " << coll.size() << std::endl;
+    }
+  }
 }
 
 // ============================== begin / end Job ==============================

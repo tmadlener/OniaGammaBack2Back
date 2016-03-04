@@ -14,11 +14,12 @@ process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_condD
 process.MessageLogger.cerr.FwkReport.reportEvery = 100
 process.options = cms.untracked.PSet( wantSummary = cms.untracked.bool(False) )
 process.options.allowUnscheduled = cms.untracked.bool(True)
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(100) )
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
 process.source = cms.Source("PoolSource",
     # replace 'myfile.root' with the source file you want to use
     fileNames = cms.untracked.vstring(
         'file:/scratch/tmadlener/data/Run2015D/Charmonium/AOD/PromptReco-v3/000/256/673/00000/04BC2F52-F55E-E511-BB01-02163E0143A2.root'
+        # 'root://xrootd-cms.infn.it//store/data/Run2015D/Charmonium/AOD/PromptReco-v3/000/256/673/00000/04BC2F52-F55E-E511-BB01-02163E0143A2.root'
     )
 )
 
@@ -67,13 +68,15 @@ process.OGB2BPhotonProducer = cms.EDProducer('ConversionPhotonProducer',
                 convAlgorithm = cms.string('undefined'),
                 convQuality = cms.vstring(['highPurity', 'generalTracksOnly']),
                 tkVtxCompSigma = cms.double(5.0),
-                pfCandSelection = cms.string(''),
+                pfCandSelection = cms.string('pt > 4'),
                 photonSelection = cms.string(''),
                 vertexChi2ProbCut = cms.double(0.0005),
                 trackChi2Cut = cms.double(10),
                 trackMinNDOF = cms.double(3.),
                 minDistanceOfApproachMaxCut = cms.double(1.00),
                 minDistanceOfApproachMinCut = cms.double(-0.25),
+                pi0NarrowWindow = cms.vdouble(0.130, 0.140),
+                pi0WideWindow = cms.vdouble(0.110, 0.160),
 )
 
 process.p = cms.Path(process.OGB2BPhotonProducer)

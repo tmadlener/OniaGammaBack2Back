@@ -47,6 +47,7 @@
 // stl
 #include <vector>
 #include <string>
+#include <bitset>
 
 /**
  * ConversionPhotonProducer prducing pat::CompositeCandidate.
@@ -57,6 +58,20 @@ public:
   ~ConversionPhotonProducer();
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
+
+  /** define the number of bits globally for this module */
+  const static size_t nBits = 8; // at the moment need only 8
+  /** typedef for consistent usage inside the module */
+  using bitsetT = std::bitset<nBits>;
+
+  /** small helper struct to group together any object with flags that have to be set in the corresponding pat object. */
+  template<typename T>
+  struct AnnotatedT {
+    /** default constructor setting all flags to 0. Deliberately declared non-explicit! */
+    AnnotatedT(T* obj, bitsetT f = bitsetT()) : object(obj), flags(f) {}
+    T* object; /**< Object that shall be annotated with the flags. */
+    bitsetT flags; /**< the bitset holding the flags. */
+  };
 
 private:
   virtual void beginJob();
@@ -78,6 +93,8 @@ private:
   double m_minDistanceOfApproachMinCut; /**< min cut for the distance of minimum approach for the conversion */
   double m_minDistanceOfApproachMaxCut; /**< max cut for the distance of minimum approach for the conversion */
   double m_trackMinNDOF; /**< minimum numbers of degree of freedom for each of the tracks of the conversion */
+  std::vector<double> m_pi0NarrowWindow; /**< narrow invariant mass window for the pi0 veto */
+  std::vector<double> m_pi0WideWindow; /**< wide invariant mass window for the pi0 veto */
 
   reco::Conversion::ConversionAlgorithm m_convAlgo; /**< desired conversion algorithm */
   std::vector<reco::Conversion::ConversionQuality> m_convQualities; /**< desired conversion qualities */
@@ -95,7 +112,7 @@ private:
   unsigned m_photonCtr{}; /**< counter for created pat::Photons */
 
   // --------- private member functions --------------
-  /** get all ParticleFlow candidates with particleId 'gamma' from the passed PFCandidateCollection */
+  /** get all ParticleFlow candidates with particleId 'gamma' from the passed PFCandidateCollection*/
   const pat::PFParticleCollection getPFPhotons(const edm::Handle<edm::View<reco::PFCandidate> >& pfCands);
 
   /** collect all reco::Photons and create pat::Photons from them */
@@ -105,22 +122,25 @@ private:
   const pat::CompositeCandidateCollection getConversions(const edm::Handle<reco::ConversionCollection>& convs);
 
   /** create a pat::CompositeCandidate from a reco::Conversion */
-  pat::CompositeCandidate makePhotonCandidate(const reco::Conversion& conversion);
+  pat::CompositeCandidate makePhotonCandidate(const AnnotatedT<const reco::Conversion>& conversion);
 
   /** convert from one LorentzVectorType to the other */
   inline reco::Candidate::LorentzVector convertVector(const math::XYZTLorentzVectorF& v) {
     return reco::Candidate::LorentzVector(v.x(), v.y(), v.z(), v.t());
   }
 
-  /** add some flags to the pat Particle using data from the reco Particle */
+  /** add some flags to the pat Particle using data from the reco Particle (which can already have some other flags set)*/
   template<typename PatType, typename RecoType>
-  void annotate(PatType& patPart, const RecoType& recoPart) const;
+  inline void annotate(PatType& patPart, const AnnotatedT<RecoType>& recoPart) const
+  {
+     patPart.addUserInt("flags", recoPart.flags.to_ulong());
+  }
 
   /** check if the conversion candidate has all desired quality flags */
   bool checkConversionQuality(const reco::Conversion& conv) const
   {
     for(const auto& qual : m_convQualities) {
-      if( !conv.quality(qual)) return false;
+      if( !conv.quality(qual)) {return false;}
     }
     return true;
   }
@@ -150,6 +170,18 @@ private:
    */
   bool checkHighPuritySubset(const reco::Conversion& conv, const reco::VertexCollection& vtxs) const;
 
+  /** check if two conversions share tracks.
+   * If two conversions share a track only the one with the best chi2 will not get the corresponding flag set
+   */
+  void checkTrackSharing(std::vector<AnnotatedT<const reco::Conversion> >& conversions);
+
+  /** Remove all objects from the collection that have any of the flags set in flags. */
+  template<typename RecoType>
+  void removeFlagged(std::vector<AnnotatedT<const RecoType> >& coll, const bitsetT& flags);
+
+  /** Store the flags into an unsigned and store it in the patCandidate. */
+  template<typename patType>
+  void setFlags(patType& patCand, const bitsetT& bits);
 };
 
 //
