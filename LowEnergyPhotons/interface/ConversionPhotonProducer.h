@@ -60,7 +60,7 @@ public:
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
   /** define the number of bits globally for this module */
-  const static size_t nBits = 8; // at the moment need only 8
+  const static size_t nBits = 10; // at the moment need only 8 (keep two spare)
   /** typedef for consistent usage inside the module */
   using bitsetT = std::bitset<nBits>;
 

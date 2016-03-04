@@ -333,7 +333,7 @@ void ConversionPhotonProducer::checkTrackSharing(std::vector<AnnotatedT<const re
     {
       for(const auto& tk1 : c1.object->tracks()) {
         for(const auto& tk2 : c2.object->tracks()) {
-          if(tk1 == tk2) { return true;}
+          if(tk1 == tk2) { return true; }
         }
       }
      return false;
@@ -342,7 +342,13 @@ void ConversionPhotonProducer::checkTrackSharing(std::vector<AnnotatedT<const re
   for(size_t iCa = 0; iCa < convs.size() - 1; ++iCa) {
     for(size_t iCb = iCa + 1; iCb < convs.size(); ++iCb) {
       if(commonTrack(convs[iCa], convs[iCb])) {
-        convs[iCb].flags.set(7); // set bit 7
+        if (!convs[iCb].flags.test(7)) { // if it is not already marked as check if the better ranke is marked already
+          if (convs[iCa].flags.test(7)) {
+            convs[iCb].flags.set(8);
+          } else {
+            convs[iCb].flags.set(7);
+          }
+        }
       }
     }
   }
@@ -353,19 +359,10 @@ template<typename RecoType>
 void ConversionPhotonProducer::removeFlagged(std::vector<AnnotatedT<const RecoType> >& coll, const bitsetT& flags)
 {
   if (coll.empty()) return;
-  std::cout << "flags: " << flags << std::endl;
   auto collIt = coll.cbegin();
   while (collIt != coll.cend()) {
-    std::cout << "checkRemove: " << (flags & collIt->flags) << " -> ";
-    if ( (flags & collIt->flags).any() ) {
-      std::cout << "removing element " << std::distance(coll.cbegin(), collIt) << " of " << coll.size() << "/";
-      collIt = coll.erase(collIt);
-      std::cout << coll.size() << std::endl;
-    }
-    else {
-      ++collIt;
-      std::cout << " increasing iterator to " << std::distance(coll.cbegin(), collIt) << " of " << coll.size() << std::endl;
-    }
+    if ( (flags & collIt->flags).any() ) { collIt = coll.erase(collIt); }
+    else { ++collIt; }
   }
 }
 
