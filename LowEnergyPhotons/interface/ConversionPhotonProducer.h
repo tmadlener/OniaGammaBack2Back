@@ -98,6 +98,9 @@ private:
 
   reco::Conversion::ConversionAlgorithm m_convAlgo; /**< desired conversion algorithm */
   std::vector<reco::Conversion::ConversionQuality> m_convQualities; /**< desired conversion qualities */
+  bitsetT m_convFlags; /**< Flags that should be checked for conversions. */
+  bitsetT m_pfPhotonFlags; /**< Flags that should be checked for the particle Flow Photons. */
+  bitsetT m_photonFlags; /**< Flags that should be checked for reco::Photon. */
 
   // ---------- data handles -------------------------
   edm::Handle<reco::ConversionCollection> m_convColl; /**< handle to the ConversionCollection */
@@ -110,6 +113,9 @@ private:
   unsigned m_patConvCtr{}; /**< counter for created conversions */
   unsigned m_patPfPartCtr{}; /**< counter for created particle flow particles */
   unsigned m_photonCtr{}; /**< counter for created pat::Photons */
+  unsigned m_recoConvCtr{}; /**< counter for presented reco conversion objects */
+  unsigned m_pfCandCtr{}; /**< counter for presented reco particle flow candidates */
+  unsigned m_photonCandCtr{}; /**< coutner for presented reco photon objects */
 
   // --------- private member functions --------------
   /** get all ParticleFlow candidates with particleId 'gamma' from the passed PFCandidateCollection*/
@@ -144,6 +150,10 @@ private:
     }
     return true;
   }
+
+  /** check the particle for all flags and pack them into a bitset. */
+  template<typename RecoType>
+  bitsetT getFlags(const RecoType& recoPart);
 
   /** get the bits that have to be set to true for the conversion for storing the bitset */
   const std::vector<unsigned short> getFlagBits(const reco::Conversion& conv) const;
@@ -181,7 +191,20 @@ private:
 
   /** Store the flags into an unsigned and store it in the patCandidate. */
   template<typename patType>
-  void setFlags(patType& patCand, const bitsetT& bits);
+  inline void setFlags(patType& patCand, const bitsetT& bits)
+  {
+    patCand.addUserInt("flags", bits.to_ulong());
+  }
+
+  /** check if any of the flags are set in the cand (then returns true). */
+  template<typename RecoType>
+  inline bool checkFlags(const AnnotatedT<const RecoType>& cand, const bitsetT& flags)
+  {
+    return ( cand.flags & flags ).any();
+  }
+
+  /** check the input string for compatibility for construction of a bitset and then construct it from the string */
+  bitsetT createFlags(const std::string& flagStr);
 };
 
 //

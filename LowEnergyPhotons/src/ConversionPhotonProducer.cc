@@ -56,6 +56,19 @@ ConversionPhotonProducer::ConversionPhotonProducer(const edm::ParameterSet& iCon
     m_convQualities.push_back( (reco::Conversion::ConversionQuality) StringToEnumValue<reco::Conversion::ConversionQuality>(qual) );
   }
 
+
+  std::string cutStr = iConfig.getParameter<std::string>("convSelection");
+  m_convFlags = createFlags(iConfig.getParameter<std::string>("convFlags"));
+  if (!cutStr.empty()) m_convFlags.set(0); // set flag if a cut selection is specified
+
+  cutStr = iConfig.getParameter<std::string>("photonSelection");
+  m_photonFlags = createFlags(iConfig.getParameter<std::string>("photonFlags"));
+  if (!cutStr.empty()) m_photonFlags.set(0); // set flag if a cut selection is specified
+
+  cutStr = iConfig.getParameter<std::string>("pfCandSelection");
+  m_pfPhotonFlags = createFlags(iConfig.getParameter<std::string>("pFlowFlags"));
+  if (!cutStr.empty()) m_pfPhotonFlags.set(0); // set flag if a cut selection is specified
+
   produces<pat::CompositeCandidateCollection>("convertedPhotons");
   produces<pat::PhotonCollection>("photons");
   produces<pat::PFParticleCollection>("PFlowPhotons");
@@ -112,11 +125,13 @@ ConversionPhotonProducer::getPFPhotons(const edm::Handle<edm::View<reco::PFCandi
   for(size_t iCand = 0; iCand < pfCands->size(); ++iCand) {
     const auto& cand = (*pfCands)[iCand];
     if(cand.particleId() != reco::PFCandidate::ParticleType::gamma) continue;
-    bitsetT flags;
-    for (const auto bit : getFlagBits(cand)) flags.set(bit);
-    pat::PFParticle photon( pfCands->refAt(iCand) ); // construct from RefToBase to PFCandidate
-    annotate(photon, AnnotatedT<const reco::PFCandidate>(&cand, flags));
-    photons.push_back(photon);
+    m_pfCandCtr++;
+    AnnotatedT<const reco::PFCandidate> annCand(&cand, getFlags(cand));
+    if (!checkFlags(annCand, m_pfPhotonFlags)) {
+      pat::PFParticle photon( pfCands->refAt(iCand) ); // construct from RefToBase to PFCandidate
+      annotate(photon, annCand);
+      photons.push_back(photon);
+    }
   }
   return photons;
 }
@@ -125,12 +140,17 @@ ConversionPhotonProducer::getPFPhotons(const edm::Handle<edm::View<reco::PFCandi
 const pat::PhotonCollection
 ConversionPhotonProducer::getPhotons(const edm::Handle<reco::PhotonCollection>& photons)
 {
-  pat::PhotonCollection outPhotons;
+  std::vector<AnnotatedT<const reco::Photon> > allPhotons;
   for(const auto& phot : *photons) {
-    pat::Photon patPhoton(phot);
-    bitsetT flags;
-    for (const auto bit : getFlagBits(phot)) flags.set(bit);
-    annotate(patPhoton, AnnotatedT<const reco::Photon>(&phot, flags));
+    m_photonCandCtr++;
+    allPhotons.push_back(AnnotatedT<const reco::Photon>(&phot, getFlags(phot)));
+  }
+  removeFlagged(allPhotons, m_photonFlags);
+
+  pat::PhotonCollection outPhotons;
+  for (const auto & phot : allPhotons) {
+    pat::Photon patPhoton(*(phot.object));
+    annotate(patPhoton, phot);
     outPhotons.push_back(patPhoton);
   }
 
@@ -146,14 +166,12 @@ ConversionPhotonProducer::getConversions(const edm::Handle<reco::ConversionColle
 
   // collect the flags for all conversions
   for(const auto& conv : *conversions) {
-    bitsetT flags;
-    for (const auto bit : getFlagBits(conv)) flags.set(bit);
-    convCands.push_back( AnnotatedT<const reco::Conversion>(&conv, flags) );
+    m_recoConvCtr++;
+    convCands.push_back( AnnotatedT<const reco::Conversion>(&conv, getFlags(conv)) );
   }
 
   // remove the undesired conversions before further processing
-  bitsetT convFlags; convFlags.set(2); convFlags.set(0); convFlags.set(4);
-  removeFlagged(convCands, convFlags);
+  removeFlagged(convCands, m_convFlags);
 
   checkTrackSharing(convCands);
 
@@ -180,6 +198,14 @@ ConversionPhotonProducer::makePhotonCandidate(const AnnotatedT<const reco::Conve
   candidate.addUserData<reco::Track>("track1", *convTracks[1]);
 
   return candidate;
+}
+
+template<typename RecoType>
+ConversionPhotonProducer::bitsetT ConversionPhotonProducer::getFlags(const RecoType& recoPart)
+{
+  bitsetT flags;
+  for ( const auto bit : getFlagBits(recoPart)) flags.set(bit);
+  return flags;
 }
 
 // ============================== GET CONVERSION FLAG BITS ==============================
@@ -211,6 +237,7 @@ const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const re
 }
 
 const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const reco::PFCandidate& pfCand) const
+// const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const pat::PFParticle& pfCand) const
 {
   std::vector<unsigned short> flagBits;
   if(!m_pfCandCutSel(pfCand)) flagBits.push_back(0);
@@ -311,13 +338,6 @@ bool ConversionPhotonProducer::checkHighPuritySubset(const reco::Conversion& con
   return true;
 }
 
-// ============================== SET FLAGS ==============================
-template<typename patType>
-void ConversionPhotonProducer::setFlags(patType& patCand, const bitsetT& flags)
-{
-  patCand.addUserInt("flags", flags.to_ulong());
-}
-
 // ============================== CHECK TRACK SHARING ==============================
 void ConversionPhotonProducer::checkTrackSharing(std::vector<AnnotatedT<const reco::Conversion> >& convs)
 {
@@ -354,16 +374,33 @@ void ConversionPhotonProducer::checkTrackSharing(std::vector<AnnotatedT<const re
   }
 }
 
-
+// ============================== REMOVE FLAGGED ==============================
 template<typename RecoType>
 void ConversionPhotonProducer::removeFlagged(std::vector<AnnotatedT<const RecoType> >& coll, const bitsetT& flags)
 {
   if (coll.empty()) return;
   auto collIt = coll.cbegin();
   while (collIt != coll.cend()) {
-    if ( (flags & collIt->flags).any() ) { collIt = coll.erase(collIt); }
+    if ( checkFlags(*collIt, flags) ) { collIt = coll.erase(collIt); }
     else { ++collIt; }
   }
+}
+
+// ============================== CREATE FLAGS ==============================
+ConversionPhotonProducer::bitsetT ConversionPhotonProducer::createFlags(const std::string& flagStr)
+{
+  for (const char c : flagStr) {
+    if (c != '1' && c != '0') {
+      std::cerr << "Passed string for flags contains characters other than 0 and 1! Unsetting all flags!" << std::endl;
+      return bitsetT{};
+    }
+  }
+
+  if (flagStr.length() > nBits) {
+    std::cerr << "Passed string is too long for the internally used bitset. Using only as many flags as can be fit into bitset!" << std::endl;
+  }
+
+  return bitsetT(flagStr);
 }
 
 // ============================== begin / end Job ==============================
@@ -373,9 +410,9 @@ void ConversionPhotonProducer::beginJob()
 
 void ConversionPhotonProducer::endJob()
 {
-  std::cout << "number of conversions: " << m_patConvCtr << std::endl;
-  std::cout << "number of PFlow photons: " << m_patPfPartCtr << std::endl;
-  std::cout << "number of Photons: " << m_photonCtr << std::endl;
+  std::cout << "number of conversions (stored / presented):  " << m_patConvCtr << " / " << m_recoConvCtr << std::endl;
+  std::cout << "number of PFlow photons (stored /presented): " << m_patPfPartCtr << " / " << m_pfCandCtr << std::endl;
+  std::cout << "number of Photons: (stored / presented):     " << m_photonCtr << " / " << m_photonCandCtr << std::endl;
 }
 
 // ============================== fill descriptions ==============================

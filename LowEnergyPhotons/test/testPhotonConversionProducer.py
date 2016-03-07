@@ -77,6 +77,9 @@ process.OGB2BPhotonProducer = cms.EDProducer('ConversionPhotonProducer',
                 minDistanceOfApproachMinCut = cms.double(-0.25),
                 pi0NarrowWindow = cms.vdouble(0.130, 0.140),
                 pi0WideWindow = cms.vdouble(0.110, 0.160),
+                convFlags = cms.string('10101'), # NOTE: shortened here! internally will be expanded to the right length
+                photonFlags = cms.string('0'), # Only one flag at the moment, which is tied to the cut selection
+                pFlowFlags = cms.string('0'), # Only one flag at the moment, which is tied to the cut selection
 )
 
 process.p = cms.Path(process.OGB2BPhotonProducer)
