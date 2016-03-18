@@ -166,6 +166,10 @@ size_t PhotonAnalyzerPAT::getDiMuonInfo(const pat::CompositeCandidateCollection&
       m_rootVariables.lxyPV.push_back(ppdlPV * pperp.Perp() / cand.mass());
       m_rootVariables.lxyBS.push_back(ppdlBS * pperp.Perp() / cand.mass());
 
+      const auto* vertexPos = cand.userData<math::XYZPoint>("vertexPosition");
+      if(!vertexPos) vertexPos = new math::XYZPoint{};
+      m_rootVariables.dimuonVertices.push_back(*vertexPos);
+
       if (m_storeOnlyBest) break; // stop here if only the best dimuon candidate is desired
     }
   } // end dimuon cand loop

@@ -25,6 +25,7 @@ struct PARootVariables {
   std::vector<math::XYZTLorentzVector> nMuonP4s{}; /**< negatively charged muon four momenta. */
 
   std::vector<math::XYZPoint> photonVertices{}; /**< the photon vertices. */
+  std::vector<math::XYZPoint> dimuonVertices{}; /**< the dimuon vertices. */
   std::vector<short> photonCat{}; /**< the photon collection. -1: unknown, 1 - pat::Photon, 2 - pat::PFParticle, 3 - pat::CompositeCandidate */
 
   unsigned event{}; /**< the event number. */
@@ -58,6 +59,7 @@ bool PARootVariables::createSetBranches(TTree* tree, bool mc)
   if(!tree->Branch("nMuonP4s", &nMuonP4s)) return false;
   if(!tree->Branch("pMuonP4s", &pMuonP4s)) return false;
 
+  if(!tree->Branch("dimuonVertices", &dimuonVertices)) return false;
   if(!tree->Branch("photonVertices", &photonVertices)) return false;
   if(!tree->Branch("photonCat", &photonCat)) return false;
 
@@ -90,6 +92,7 @@ void PARootVariables::clear()
   pMuonP4s.clear();
   nMuonP4s.clear();
 
+  dimuonVertices.clear();
   photonVertices.clear();
   photonCat.clear();
 

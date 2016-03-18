@@ -82,6 +82,9 @@ ConversionPhotonProducer::~ConversionPhotonProducer()
 // ============================== produce ==============================
 void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
+  static unsigned nEv{};
+  std::cout << "== " << ++nEv << " ==" << std::endl;
+
   // get the data to the handles (COULDDO: put this into a separate function?)
   iEvent.getByToken(m_convCollTok, m_convColl);
   iEvent.getByToken(m_photonCollTok, m_photonColl);
@@ -125,6 +128,15 @@ ConversionPhotonProducer::getPFPhotons(const edm::Handle<edm::View<reco::PFCandi
   for(size_t iCand = 0; iCand < pfCands->size(); ++iCand) {
     const auto& cand = (*pfCands)[iCand];
     if(cand.particleId() != reco::PFCandidate::ParticleType::gamma) continue;
+
+    // DEBUGGING/TESTING
+    auto convRef = cand.conversionRef();
+    auto photRef = cand.photonRef();
+    if (convRef.get() || photRef.get()) {
+      std::cout << (convRef.get() != nullptr) << " | " << m_convColl->size() << ", " << (photRef.get() != nullptr) << " | " << m_photonColl->size() << std::endl;
+    }
+    // END DEBUGGING/TESTING
+
     m_pfCandCtr++;
     AnnotatedT<const reco::PFCandidate> annCand(&cand, getFlags(cand));
     if (!checkFlags(annCand, m_pfPhotonFlags)) {
