@@ -1,4 +1,5 @@
 #include "OniaGammaBack2Back/LowEnergyPhotons/interface/ConversionPhotonProducer.h"
+#include "OniaGammaBack2Back/LowEnergyPhotons/interface/PiZeroChecker.h"
 
 #include "CommonTools/Utils/interface/StringToEnumValue.h"
 
@@ -92,6 +93,20 @@ void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup
   iEvent.getByToken(m_beamSpotTok, m_beamSpotHand);
   iEvent.getByToken(m_vertexCollTok, m_vertexColl);
 
+  // only provide the photons to the pi0checker not all PFCandidates
+  std::vector<reco::PFCandidate> recoPfPhotons;
+  for(const auto& part : *m_pfCandView) {
+    if (part.particleId() == reco::PFCandidate::ParticleType::gamma) recoPfPhotons.push_back(part);
+  }
+
+  PiZeroCheckFunction piZeroWindows(m_pi0WideWindow, m_pi0NarrowWindow);
+  PiZeroChecker pi0Checker(piZeroWindows);
+  pi0Checker.addCollections(*m_photonColl, recoPfPhotons, *m_convColl);
+  pi0Checker.check();
+  const auto foo = pi0Checker.getCheckIndices<decltype(*m_convColl)>();
+
+  m_pi01 += foo.size();
+
   // process the conversions
   std::auto_ptr<pat::CompositeCandidateCollection> patConvOutColl(new pat::CompositeCandidateCollection);
   const auto convColl = getConversions(m_convColl);
@@ -118,6 +133,13 @@ void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup
     patPhotonOutColl->push_back(photon);
   }
   iEvent.put(patPhotonOutColl, "photons");
+
+  PiZeroChecker checker2(piZeroWindows);
+  pi0Checker.addCollections(photonColl, pfPhotons, convColl);
+  pi0Checker.check();
+
+  auto foo2 = pi0Checker.getCheckIndices<decltype(convColl)>();
+  m_pi02 += foo2.size();
 }
 
 // ============================== GET PFPHOTONS ==============================
@@ -425,6 +447,8 @@ void ConversionPhotonProducer::endJob()
   std::cout << "number of conversions (stored / presented):  " << m_patConvCtr << " / " << m_recoConvCtr << std::endl;
   std::cout << "number of PFlow photons (stored /presented): " << m_patPfPartCtr << " / " << m_pfCandCtr << std::endl;
   std::cout << "number of Photons: (stored / presented):     " << m_photonCtr << " / " << m_photonCandCtr << std::endl;
+
+  std::cout << "pi0 ctr: " << m_pi01 << " | " << m_pi02 << std::endl;
 }
 
 // ============================== fill descriptions ==============================

@@ -78,6 +78,8 @@ private:
   virtual void produce(edm::Event&, const edm::EventSetup&);
   virtual void endJob();
 
+  unsigned m_pi01, m_pi02;
+
   // ----------member data ---------------------------
   edm::EDGetTokenT<reco::ConversionCollection> m_convCollTok; /**< token to get the ConversionCollection */
   edm::EDGetTokenT<reco::PhotonCollection> m_photonCollTok; /**< token to get the photon collection */
