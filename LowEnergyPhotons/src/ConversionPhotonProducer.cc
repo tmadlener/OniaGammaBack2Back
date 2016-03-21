@@ -105,7 +105,9 @@ void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup
   pi0Checker.check();
   const auto foo = pi0Checker.getCheckIndices<decltype(*m_convColl)>();
 
-  m_pi01 += foo.size();
+  for (const auto& res : foo) {
+    if (res.m_massWindow2) m_pi01++;
+  }
 
   // process the conversions
   std::auto_ptr<pat::CompositeCandidateCollection> patConvOutColl(new pat::CompositeCandidateCollection);
@@ -139,7 +141,9 @@ void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup
   pi0Checker.check();
 
   auto foo2 = pi0Checker.getCheckIndices<decltype(convColl)>();
-  m_pi02 += foo2.size();
+  for (const auto res : foo2) {
+    if (res.m_massWindow2) m_pi02++;
+  }
 }
 
 // ============================== GET PFPHOTONS ==============================

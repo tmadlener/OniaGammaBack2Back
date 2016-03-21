@@ -7,6 +7,26 @@
 #include <vector>
 #include <iterator>
 
+/** Templated class to perform checks on pair of object.
+ *
+ * Different collections can be added via addCollections() (takes more than one collection, which need not be of
+ * the same type). Calling check() performs the check specified by CheckFunction on each possible combination
+ * of two objects. The results are stored in CheckObject for each passed object (together with the information
+ * of which type the object is for returning purposes). Calling getCheckIndices() returns a vector of ReturnType
+ * for all objects of a given type. In ReturnType the index of the object in the original collection gets stored
+ * as well as arbitrary user defined information.
+ *
+ * Requirements on the template parameters:
+ * @param CheckObject - internally used Object that needs to store all information needed to do the checks. Needs
+ * to be constructible from all objects of all collections that are passed into addCollections(). Needs to provide
+ * bool veto() to indicate whether or not a check failed on an object.
+ * This is essentially used to get a homogenous interface to all objects despite them being of different types with
+ * probably different interfaces.
+ * @param CheckFunction - function object taking two CheckObject (references) as arguments to operator(). The
+ * return type of operator() is not used and can thus be declared as void.
+ * @param ReturnType - User defined ReturnType that contains the index of the original object in the original
+ * collection. Needs to provide a constructor that takes a size_t as first and a CheckObject as second argument.
+ */
 template<typename CheckObject, typename CheckFunction, typename ReturnType>
 class PairWiseChecker {
 public:

@@ -51,7 +51,9 @@ struct DoubleMassWindowChecker {
   DoubleMassWindowChecker(const std::vector<double>& w1, const std::vector<double> w2) :
     m_window1(w1), m_window2(w2) {;}
   DoubleMassWindowChecker() = delete; /**< no use for default constructor. */
+  ~DoubleMassWindowChecker() = default; /**< default deconstructor suffices. */
 
+  /** operator() defining the check that should be done. */
   void operator()(CheckObject& obj1, CheckObject& obj2);
 
 private:
@@ -76,10 +78,9 @@ void DoubleMassWindowChecker<CheckObject>::operator()(CheckObject& obj1, CheckOb
 /** typedef for PiZero Checking. */
 using PiZeroCheckFunction = DoubleMassWindowChecker<PiZeroCheckObject>;
 
-
 /** struct holding the information needed at return from the DoubleMassWindow checking.*/
 struct DoubleMassWindowRT {
-  /** */
+  /** constructor taking a DoubleMassWindowCO check object. */
   template<typename LorentzVectorT>
   DoubleMassWindowRT(size_t ind, const DoubleMassWindowCO<LorentzVectorT>& checkObj) :
     m_index(ind),
