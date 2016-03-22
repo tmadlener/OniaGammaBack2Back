@@ -68,7 +68,7 @@ process.OGB2BPhotonProducer = cms.EDProducer('ConversionPhotonProducer',
                 convAlgorithm = cms.string('undefined'),
                 convQuality = cms.vstring(['highPurity', 'generalTracksOnly']),
                 tkVtxCompSigma = cms.double(5.0),
-                pfCandSelection = cms.string(''),# 'pt > 4'),
+                pfCandSelection = cms.string(''),#,'pt > 4'),
                 photonSelection = cms.string(''),
                 vertexChi2ProbCut = cms.double(0.0005),
                 trackChi2Cut = cms.double(10),
@@ -77,9 +77,9 @@ process.OGB2BPhotonProducer = cms.EDProducer('ConversionPhotonProducer',
                 minDistanceOfApproachMinCut = cms.double(-0.25),
                 pi0NarrowWindow = cms.vdouble(0.130, 0.140),
                 pi0WideWindow = cms.vdouble(0.110, 0.160),
-                convFlags = cms.string('10101'), # NOTE: shortened here! internally will be expanded to the right length
-                photonFlags = cms.string('0'), # Only one flag at the moment, which is tied to the cut selection
-                pFlowFlags = cms.string('0'), # Only one flag at the moment, which is tied to the cut selection
+                convFlags =   cms.string('1000010101'), # NOTE: full possible length
+                photonFlags = cms.string('1000000000'), # Only one flag at the moment, which is tied to the cut selection
+                pFlowFlags =  cms.string('1000000000'), # Only one flag at the moment, which is tied to the cut selection
 )
 
 process.p = cms.Path(process.OGB2BPhotonProducer)
