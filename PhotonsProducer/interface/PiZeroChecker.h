@@ -1,7 +1,7 @@
 #ifndef __OniaGamma_PiZeroChecker_h_
 #define __OniaGamma_PiZeroChecker_h_
 
-#include "OniaGammaBack2Back/LowEnergyPhotons/interface/PairWiseChecker.h"
+#include "OniaGammaBack2Back/PhotonsProducer/interface/PairWiseChecker.h"
 
 #include "DataFormats/EgammaCandidates/interface/Conversion.h"
 #include "DataFormats/Candidate/interface/Candidate.h"

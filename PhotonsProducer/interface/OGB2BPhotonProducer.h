@@ -1,11 +1,11 @@
 // -*- C++ -*-
 //
-// Package:    LowEnergyPhotons
-// Class:      LowEnergyPhotons
+// Package:    PhotonsProducer
+// Class:      PhotonsProducer
 //
-/**\class ConversionPhotonProducer OniaGammaBack2Back/LowEnergyPhotons/interface/LowEnergyPhotons.h
+/**\class OGB2BPhotonProducer OniaGammaBack2Back/PhotonsProducer/interface/OGB2BPhotonProducer.h
 
- Description: Class for Producing Conversion Photons
+ Description: Class for Producing All kinds of photons
 
  Implementation:
      [Notes on implementation]
@@ -17,10 +17,10 @@
 //
 //
 
-#ifndef __OniaGamma_ConversionPhotonProducer_h_
-#define __OniaGamma_ConversionPhotonProducer_h_
+#ifndef __OniaGamma_OGB2BPhotonProducer_h_
+#define __OniaGamma_OGB2BPhotonProducer_h_
 
-#include "OniaGammaBack2Back/LowEnergyPhotons/interface/PiZeroChecker.h"
+#include "OniaGammaBack2Back/PhotonsProducer/interface/PiZeroChecker.h"
 
 // system include files
 #include <memory>
@@ -52,12 +52,12 @@
 #include <bitset>
 
 /**
- * ConversionPhotonProducer prducing pat::CompositeCandidate.
+ * OGB2BPhotonProducer prducing pat::CompositeCandidate.
  */
-class ConversionPhotonProducer : public edm::EDProducer {
+class OGB2BPhotonProducer : public edm::EDProducer {
 public:
-  explicit ConversionPhotonProducer(const edm::ParameterSet&);
-  ~ConversionPhotonProducer();
+  explicit OGB2BPhotonProducer(const edm::ParameterSet&);
+  ~OGB2BPhotonProducer();
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
@@ -79,8 +79,6 @@ private:
   virtual void beginJob();
   virtual void produce(edm::Event&, const edm::EventSetup&);
   virtual void endJob();
-
-  unsigned m_pi01, m_pi02;
 
   // ----------member data ---------------------------
   edm::EDGetTokenT<reco::ConversionCollection> m_convCollTok; /**< token to get the ConversionCollection */

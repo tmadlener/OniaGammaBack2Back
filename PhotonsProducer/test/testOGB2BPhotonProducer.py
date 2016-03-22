@@ -58,7 +58,7 @@ process.patTrackCands.embedTrack = True
 ###############################################
 # HERE STARTS MY PART                         #
 ###############################################
-process.OGB2BPhotonProducer = cms.EDProducer('ConversionPhotonProducer',
+process.OGB2BPhotonProducer = cms.EDProducer('OGB2BPhotonProducer',
                 conversions = cms.InputTag('allConversions'),
                 allPhotons = cms.InputTag('photons'),
                 pfcandidates = cms.InputTag('particleFlow'),

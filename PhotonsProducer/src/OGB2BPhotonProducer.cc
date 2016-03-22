@@ -1,5 +1,5 @@
-#include "OniaGammaBack2Back/LowEnergyPhotons/interface/ConversionPhotonProducer.h"
-#include "OniaGammaBack2Back/LowEnergyPhotons/interface/PiZeroChecker.h"
+#include "OniaGammaBack2Back/PhotonsProducer/interface/OGB2BPhotonProducer.h"
+#include "OniaGammaBack2Back/PhotonsProducer/interface/PiZeroChecker.h"
 
 #include "CommonTools/Utils/interface/StringToEnumValue.h"
 
@@ -29,7 +29,7 @@
 #include "/afs/hephy.at/user/t/tmadlener/snippets/type_deduction_helper.h"
 
 // ============================== constructor / destructor ==============================
-ConversionPhotonProducer::ConversionPhotonProducer(const edm::ParameterSet& iConfig) :
+OGB2BPhotonProducer::OGB2BPhotonProducer(const edm::ParameterSet& iConfig) :
   m_convCollTok( consumes<reco::ConversionCollection>(iConfig.getParameter<edm::InputTag>("conversions")) ),
   m_photonCollTok( consumes<reco::PhotonCollection>(iConfig.getParameter<edm::InputTag>("allPhotons")) ),
   m_pfCandViewTok( consumes<edm::View<reco::PFCandidate> >(iConfig.getParameter<edm::InputTag>("pfcandidates"))  ),
@@ -75,13 +75,13 @@ ConversionPhotonProducer::ConversionPhotonProducer(const edm::ParameterSet& iCon
   produces<pat::PFParticleCollection>("PFlowPhotons");
 }
 
-ConversionPhotonProducer::~ConversionPhotonProducer()
+OGB2BPhotonProducer::~OGB2BPhotonProducer()
 {
   // TODO
 }
 
 // ============================== produce ==============================
-void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
+void OGB2BPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
   // get the data to the handles (COULDDO: put this into a separate function?)
   iEvent.getByToken(m_convCollTok, m_convColl);
@@ -132,7 +132,7 @@ void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup
 
 // ============================== GET PFPHOTONS ==============================
 const pat::PFParticleCollection
-ConversionPhotonProducer::getPFPhotons(const edm::Handle<edm::View<reco::PFCandidate> >& pfCands,
+OGB2BPhotonProducer::getPFPhotons(const edm::Handle<edm::View<reco::PFCandidate> >& pfCands,
                                        const std::vector<DoubleMassWindowRT>& piZeroResults)
 {
   // NOTE: need the edm::View to have a RefToBase for constructing the pat::PFParticle, this makes this
@@ -173,7 +173,7 @@ ConversionPhotonProducer::getPFPhotons(const edm::Handle<edm::View<reco::PFCandi
 
 // ============================= GET PHOTONS ==============================
 const pat::PhotonCollection
-ConversionPhotonProducer::getPhotons(const edm::Handle<reco::PhotonCollection>& photons,
+OGB2BPhotonProducer::getPhotons(const edm::Handle<reco::PhotonCollection>& photons,
                                      const std::vector<DoubleMassWindowRT>& piZeroResults)
 {
   std::vector<AnnotatedT<const reco::Photon> > allPhotons;
@@ -197,7 +197,7 @@ ConversionPhotonProducer::getPhotons(const edm::Handle<reco::PhotonCollection>& 
 
 // ============================== GET CONVERSIONS ==============================
 const pat::CompositeCandidateCollection
-ConversionPhotonProducer::getConversions(const edm::Handle<reco::ConversionCollection>& conversions,
+OGB2BPhotonProducer::getConversions(const edm::Handle<reco::ConversionCollection>& conversions,
                                          const std::vector<DoubleMassWindowRT>& piZeroResults)
 {
   pat::CompositeCandidateCollection collection;
@@ -226,7 +226,7 @@ ConversionPhotonProducer::getConversions(const edm::Handle<reco::ConversionColle
 
 // ============================== MAKE PHOTON CANDIDATE ==============================
 pat::CompositeCandidate
-ConversionPhotonProducer::makePhotonCandidate(const AnnotatedT<const reco::Conversion>& conversion)
+OGB2BPhotonProducer::makePhotonCandidate(const AnnotatedT<const reco::Conversion>& conversion)
 {
   pat::CompositeCandidate candidate;
   candidate.setP4( convertVector(conversion.object->refittedPair4Momentum()) );
@@ -240,7 +240,7 @@ ConversionPhotonProducer::makePhotonCandidate(const AnnotatedT<const reco::Conve
 }
 
 template<typename RecoType>
-ConversionPhotonProducer::bitsetT ConversionPhotonProducer::getFlags(const RecoType& recoPart)
+OGB2BPhotonProducer::bitsetT OGB2BPhotonProducer::getFlags(const RecoType& recoPart)
 {
   bitsetT flags;
   for ( const auto bit : getFlagBits(recoPart)) flags.set(bit);
@@ -248,7 +248,7 @@ ConversionPhotonProducer::bitsetT ConversionPhotonProducer::getFlags(const RecoT
 }
 
 // ============================== GET CONVERSION FLAG BITS ==============================
-const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const reco::Conversion& conv) const
+const std::vector<unsigned short> OGB2BPhotonProducer::getFlagBits(const reco::Conversion& conv) const
 {
   std::vector<unsigned short> flagBits;
   if(!m_conversionCutSel(conv)) flagBits.push_back(0);
@@ -267,7 +267,7 @@ const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const re
   return flagBits;
 }
 
-const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const reco::Photon& photon) const
+const std::vector<unsigned short> OGB2BPhotonProducer::getFlagBits(const reco::Photon& photon) const
 {
   std::vector<unsigned short> flagBits;
   if(!m_photonCutSel(photon)) flagBits.push_back(0);
@@ -275,8 +275,8 @@ const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const re
   return flagBits;
 }
 
-const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const reco::PFCandidate& pfCand) const
-// const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const pat::PFParticle& pfCand) const
+const std::vector<unsigned short> OGB2BPhotonProducer::getFlagBits(const reco::PFCandidate& pfCand) const
+// const std::vector<unsigned short> OGB2BPhotonProducer::getFlagBits(const pat::PFParticle& pfCand) const
 {
   std::vector<unsigned short> flagBits;
   if(!m_pfCandCutSel(pfCand)) flagBits.push_back(0);
@@ -285,7 +285,7 @@ const std::vector<unsigned short> ConversionPhotonProducer::getFlagBits(const re
 }
 
 // ============================== CHECK TRACK VERTEX COMPATIBILITY ==============================
-bool ConversionPhotonProducer::checkTkVtxCompatibility(const reco::Conversion& conv) const
+bool OGB2BPhotonProducer::checkTkVtxCompatibility(const reco::Conversion& conv) const
 {
   std::array<std::vector<std::pair<double, unsigned short> >,2> vtxIdcs; // NOTE: the size has been checked prior to this!
   for(size_t iTk = 0; iTk < 2; ++iTk ) {
@@ -317,7 +317,7 @@ bool ConversionPhotonProducer::checkTkVtxCompatibility(const reco::Conversion& c
 }
 
 // ============================== CHECK COMPATIBLE INNER HITS ==============================
-bool ConversionPhotonProducer::checkCompatibleInnerHits(const reco::Conversion& conv) const
+bool OGB2BPhotonProducer::checkCompatibleInnerHits(const reco::Conversion& conv) const
 {
   const reco::HitPattern& hitPatA = conv.tracks()[0]->hitPattern();
   const reco::HitPattern& hitPatB = conv.tracks()[1]->hitPattern();
@@ -326,7 +326,7 @@ bool ConversionPhotonProducer::checkCompatibleInnerHits(const reco::Conversion& 
 }
 
 // ============================== FOUND COMPATIBLE INNER HITS ==============================
-bool ConversionPhotonProducer::foundCompatibleInnerHits(const reco::HitPattern& hitPatA, const reco::HitPattern& hitPatB) const
+bool OGB2BPhotonProducer::foundCompatibleInnerHits(const reco::HitPattern& hitPatA, const reco::HitPattern& hitPatB) const
 {
   reco::HitPattern::HitCategory tkHits = reco::HitPattern::HitCategory::TRACK_HITS;
 
@@ -348,7 +348,7 @@ bool ConversionPhotonProducer::foundCompatibleInnerHits(const reco::HitPattern& 
 }
 
 // ============================== CHECK HIGH PURITY SUBSET ==============================
-bool ConversionPhotonProducer::checkHighPuritySubset(const reco::Conversion& conv, const reco::VertexCollection& vtxColl) const
+bool OGB2BPhotonProducer::checkHighPuritySubset(const reco::Conversion& conv, const reco::VertexCollection& vtxColl) const
 {
   if(ChiSquaredProbability(conv.conversionVertex().chi2(), conv.conversionVertex().ndof()) < m_vertexChi2ProbCut) {
     return false;
@@ -378,7 +378,7 @@ bool ConversionPhotonProducer::checkHighPuritySubset(const reco::Conversion& con
 }
 
 // ============================== CHECK TRACK SHARING ==============================
-void ConversionPhotonProducer::checkTrackSharing(std::vector<AnnotatedT<const reco::Conversion> >& convs)
+void OGB2BPhotonProducer::checkTrackSharing(std::vector<AnnotatedT<const reco::Conversion> >& convs)
 {
   if(convs.size() < 2) return; // no purpose in checking if there is only one conversion
 
@@ -415,7 +415,7 @@ void ConversionPhotonProducer::checkTrackSharing(std::vector<AnnotatedT<const re
 
 // ============================== REMOVE FLAGGED ==============================
 template<typename RecoType>
-void ConversionPhotonProducer::removeFlagged(std::vector<AnnotatedT<const RecoType> >& coll, const bitsetT& flags)
+void OGB2BPhotonProducer::removeFlagged(std::vector<AnnotatedT<const RecoType> >& coll, const bitsetT& flags)
 {
   if (coll.empty()) return;
   auto collIt = coll.cbegin();
@@ -426,7 +426,7 @@ void ConversionPhotonProducer::removeFlagged(std::vector<AnnotatedT<const RecoTy
 }
 
 // ============================== CREATE FLAGS ==============================
-ConversionPhotonProducer::bitsetT ConversionPhotonProducer::createFlags(const std::string& flagStr)
+OGB2BPhotonProducer::bitsetT OGB2BPhotonProducer::createFlags(const std::string& flagStr)
 {
   for (const char c : flagStr) {
     if (c != '1' && c != '0') {
@@ -444,7 +444,7 @@ ConversionPhotonProducer::bitsetT ConversionPhotonProducer::createFlags(const st
 
 // ============================== SET PI0 FLAGS ==============================
 template<typename RecoType>
-void ConversionPhotonProducer::setPiZeroFlags(std::vector<AnnotatedT<const RecoType> >& cands,
+void OGB2BPhotonProducer::setPiZeroFlags(std::vector<AnnotatedT<const RecoType> >& cands,
                                               const std::vector<DoubleMassWindowRT>& pi0Results)
 {
   for (const auto& res : pi0Results) {
@@ -454,21 +454,19 @@ void ConversionPhotonProducer::setPiZeroFlags(std::vector<AnnotatedT<const RecoT
 }
 
 // ============================== begin / end Job ==============================
-void ConversionPhotonProducer::beginJob()
+void OGB2BPhotonProducer::beginJob()
 {
 }
 
-void ConversionPhotonProducer::endJob()
+void OGB2BPhotonProducer::endJob()
 {
   std::cout << "number of conversions (stored / presented):  " << m_patConvCtr << " / " << m_recoConvCtr << std::endl;
   std::cout << "number of PFlow photons (stored /presented): " << m_patPfPartCtr << " / " << m_pfCandCtr << std::endl;
   std::cout << "number of Photons: (stored / presented):     " << m_photonCtr << " / " << m_photonCandCtr << std::endl;
-
-  std::cout << "pi0 ctr: " << m_pi01 << " | " << m_pi02 << std::endl;
 }
 
 // ============================== fill descriptions ==============================
-void ConversionPhotonProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions)
+void OGB2BPhotonProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions)
 {
   //The following says we do not know what parameters are allowed so do no validation
   // Please change this to state exactly what you do use, even if it is no parameters
@@ -477,4 +475,4 @@ void ConversionPhotonProducer::fillDescriptions(edm::ConfigurationDescriptions& 
   descriptions.addDefault(desc);
 }
 
-DEFINE_FWK_MODULE(ConversionPhotonProducer);
+DEFINE_FWK_MODULE(OGB2BPhotonProducer);
