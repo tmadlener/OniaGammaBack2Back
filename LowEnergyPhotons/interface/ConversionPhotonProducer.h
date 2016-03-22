@@ -20,6 +20,8 @@
 #ifndef __OniaGamma_ConversionPhotonProducer_h_
 #define __OniaGamma_ConversionPhotonProducer_h_
 
+#include "OniaGammaBack2Back/LowEnergyPhotons/interface/PiZeroChecker.h"
+
 // system include files
 #include <memory>
 
@@ -121,13 +123,16 @@ private:
 
   // --------- private member functions --------------
   /** get all ParticleFlow candidates with particleId 'gamma' from the passed PFCandidateCollection*/
-  const pat::PFParticleCollection getPFPhotons(const edm::Handle<edm::View<reco::PFCandidate> >& pfCands);
+  const pat::PFParticleCollection getPFPhotons(const edm::Handle<edm::View<reco::PFCandidate> >& pfCands,
+                                               const std::vector<DoubleMassWindowRT>& piZeroResults);
 
   /** collect all reco::Photons and create pat::Photons from them */
-  const pat::PhotonCollection getPhotons(const edm::Handle<reco::PhotonCollection>& photons);
+  const pat::PhotonCollection getPhotons(const edm::Handle<reco::PhotonCollection>& photons,
+                                         const std::vector<DoubleMassWindowRT>& piZeroResults);
 
   /** collect all conversions and put them into a CompositeCandidateCollection and add some additional info */
-  const pat::CompositeCandidateCollection getConversions(const edm::Handle<reco::ConversionCollection>& convs);
+  const pat::CompositeCandidateCollection getConversions(const edm::Handle<reco::ConversionCollection>& convs,
+                                                         const std::vector<DoubleMassWindowRT>& piZeroResults);
 
   /** create a pat::CompositeCandidate from a reco::Conversion */
   pat::CompositeCandidate makePhotonCandidate(const AnnotatedT<const reco::Conversion>& conversion);
@@ -207,6 +212,10 @@ private:
 
   /** check the input string for compatibility for construction of a bitset and then construct it from the string */
   bitsetT createFlags(const std::string& flagStr);
+
+  template<typename RecoType>
+  void setPiZeroFlags(std::vector<AnnotatedT<const RecoType> >& cands,
+                      const std::vector<DoubleMassWindowRT>& pi0Results);
 };
 
 //

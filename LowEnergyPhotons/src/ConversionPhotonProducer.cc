@@ -83,9 +83,6 @@ ConversionPhotonProducer::~ConversionPhotonProducer()
 // ============================== produce ==============================
 void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
-  static unsigned nEv{};
-  std::cout << "== " << ++nEv << " ==" << std::endl;
-
   // get the data to the handles (COULDDO: put this into a separate function?)
   iEvent.getByToken(m_convCollTok, m_convColl);
   iEvent.getByToken(m_photonCollTok, m_photonColl);
@@ -103,86 +100,89 @@ void ConversionPhotonProducer::produce(edm::Event& iEvent, const edm::EventSetup
   PiZeroChecker pi0Checker(piZeroWindows);
   pi0Checker.addCollections(*m_photonColl, recoPfPhotons, *m_convColl);
   pi0Checker.check();
-  const auto foo = pi0Checker.getCheckIndices<decltype(*m_convColl)>();
-
-  for (const auto& res : foo) {
-    if (res.m_massWindow2) m_pi01++;
-  }
 
   // process the conversions
   std::auto_ptr<pat::CompositeCandidateCollection> patConvOutColl(new pat::CompositeCandidateCollection);
-  const auto convColl = getConversions(m_convColl);
+  const auto convColl = getConversions(m_convColl, pi0Checker.getCheckIndices<decltype(*m_convColl)>());
   for(const auto& patConv : convColl) {
     m_patConvCtr++;
     patConvOutColl->push_back(patConv);
   }
-  iEvent.put(patConvOutColl, "convertedPhotons");
 
   // process the PFCandidates
   std::auto_ptr<pat::PFParticleCollection> pfPartOutColl(new pat::PFParticleCollection);
-  pat::PFParticleCollection pfPhotons = getPFPhotons(m_pfCandView);
+  pat::PFParticleCollection pfPhotons = getPFPhotons(m_pfCandView, pi0Checker.getCheckIndices<decltype(recoPfPhotons)>());
   for(const auto& pfPhoton : pfPhotons) {
       m_patPfPartCtr++;
       pfPartOutColl->push_back(pfPhoton);
   }
-  iEvent.put(pfPartOutColl, "PFlowPhotons");
 
   // process the photons
   std::auto_ptr<pat::PhotonCollection> patPhotonOutColl(new pat::PhotonCollection);
-  auto photonColl = getPhotons(m_photonColl);
+  auto photonColl = getPhotons(m_photonColl, pi0Checker.getCheckIndices<decltype(*m_photonColl)>());
   for(const auto& photon : photonColl) {
     m_photonCtr++;
     patPhotonOutColl->push_back(photon);
   }
+
   iEvent.put(patPhotonOutColl, "photons");
-
-  PiZeroChecker checker2(piZeroWindows);
-  pi0Checker.addCollections(photonColl, pfPhotons, convColl);
-  pi0Checker.check();
-
-  auto foo2 = pi0Checker.getCheckIndices<decltype(convColl)>();
-  for (const auto res : foo2) {
-    if (res.m_massWindow2) m_pi02++;
-  }
+  iEvent.put(pfPartOutColl, "PFlowPhotons");
+  iEvent.put(patConvOutColl, "convertedPhotons");
 }
 
 // ============================== GET PFPHOTONS ==============================
 const pat::PFParticleCollection
-ConversionPhotonProducer::getPFPhotons(const edm::Handle<edm::View<reco::PFCandidate> >& pfCands)
+ConversionPhotonProducer::getPFPhotons(const edm::Handle<edm::View<reco::PFCandidate> >& pfCands,
+                                       const std::vector<DoubleMassWindowRT>& piZeroResults)
 {
+  // NOTE: need the edm::View to have a RefToBase for constructing the pat::PFParticle, this makes this
+  // function more messy than it should be.
+  std::vector<AnnotatedT<const reco::PFCandidate> > annotatedCands;
   pat::PFParticleCollection photons;
   for(size_t iCand = 0; iCand < pfCands->size(); ++iCand) {
     const auto& cand = (*pfCands)[iCand];
     if(cand.particleId() != reco::PFCandidate::ParticleType::gamma) continue;
 
-    // DEBUGGING/TESTING
-    auto convRef = cand.conversionRef();
-    auto photRef = cand.photonRef();
-    if (convRef.get() || photRef.get()) {
-      std::cout << (convRef.get() != nullptr) << " | " << m_convColl->size() << ", " << (photRef.get() != nullptr) << " | " << m_photonColl->size() << std::endl;
-    }
-    // END DEBUGGING/TESTING
-
     m_pfCandCtr++;
     AnnotatedT<const reco::PFCandidate> annCand(&cand, getFlags(cand));
+    annotatedCands.push_back(annCand);
+
+    pat::PFParticle photon( pfCands->refAt(iCand) ); // construct from RefToBase to PFCandidate
+    photons.push_back(photon);
+  }
+
+  setPiZeroFlags(annotatedCands, piZeroResults);
+
+  for (size_t iCand = 0; iCand < photons.size(); ++iCand) {
+    const auto& annCand = annotatedCands[iCand];
+    auto& photon = photons[iCand];
     if (!checkFlags(annCand, m_pfPhotonFlags)) {
-      pat::PFParticle photon( pfCands->refAt(iCand) ); // construct from RefToBase to PFCandidate
       annotate(photon, annCand);
-      photons.push_back(photon);
     }
   }
+
+  // now loop again over all patCandidates and remove all that have no flags
+  auto patIt = photons.begin();
+  while(patIt != photons.end()) {
+    if(patIt->hasUserInt("flags")) ++patIt;
+    else photons.erase(patIt);
+  }
+
   return photons;
 }
 
 // ============================= GET PHOTONS ==============================
 const pat::PhotonCollection
-ConversionPhotonProducer::getPhotons(const edm::Handle<reco::PhotonCollection>& photons)
+ConversionPhotonProducer::getPhotons(const edm::Handle<reco::PhotonCollection>& photons,
+                                     const std::vector<DoubleMassWindowRT>& piZeroResults)
 {
   std::vector<AnnotatedT<const reco::Photon> > allPhotons;
   for(const auto& phot : *photons) {
     m_photonCandCtr++;
     allPhotons.push_back(AnnotatedT<const reco::Photon>(&phot, getFlags(phot)));
   }
+
+  setPiZeroFlags(allPhotons, piZeroResults);
   removeFlagged(allPhotons, m_photonFlags);
 
   pat::PhotonCollection outPhotons;
@@ -197,7 +197,8 @@ ConversionPhotonProducer::getPhotons(const edm::Handle<reco::PhotonCollection>& 
 
 // ============================== GET CONVERSIONS ==============================
 const pat::CompositeCandidateCollection
-ConversionPhotonProducer::getConversions(const edm::Handle<reco::ConversionCollection>& conversions)
+ConversionPhotonProducer::getConversions(const edm::Handle<reco::ConversionCollection>& conversions,
+                                         const std::vector<DoubleMassWindowRT>& piZeroResults)
 {
   pat::CompositeCandidateCollection collection;
   std::vector<AnnotatedT<const reco::Conversion> > convCands;
@@ -208,7 +209,7 @@ ConversionPhotonProducer::getConversions(const edm::Handle<reco::ConversionColle
     convCands.push_back( AnnotatedT<const reco::Conversion>(&conv, getFlags(conv)) );
   }
 
-  // remove the undesired conversions before further processing
+  setPiZeroFlags(convCands, piZeroResults);
   removeFlagged(convCands, m_convFlags);
 
   checkTrackSharing(convCands);
@@ -435,10 +436,21 @@ ConversionPhotonProducer::bitsetT ConversionPhotonProducer::createFlags(const st
   }
 
   if (flagStr.length() > nBits) {
-    std::cerr << "Passed string is too long for the internally used bitset. Using only as many flags as can be fit into bitset!" << std::endl;
+    std::cerr << "Passed too many bits for the internally used bitset. Using only as many flags as can be fit into bitset!" << std::endl;
   }
 
   return bitsetT(flagStr);
+}
+
+// ============================== SET PI0 FLAGS ==============================
+template<typename RecoType>
+void ConversionPhotonProducer::setPiZeroFlags(std::vector<AnnotatedT<const RecoType> >& cands,
+                                              const std::vector<DoubleMassWindowRT>& pi0Results)
+{
+  for (const auto& res : pi0Results) {
+    if (res.m_massWindow1) cands[res.m_index].flags.set(8);
+    if (res.m_massWindow2) cands[res.m_index].flags.set(9);
+  }
 }
 
 // ============================== begin / end Job ==============================

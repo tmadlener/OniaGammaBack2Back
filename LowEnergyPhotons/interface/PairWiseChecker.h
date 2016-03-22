@@ -76,7 +76,7 @@ void PairWiseChecker<CheckObject, CheckFunction, ReturnType>::check()
   // NOTE: cannot use iterator offsets on std::multimap since they only define forward_iterators!
   // Solution: loop over all candidates and make sure to not combine identical objects
   for (auto firstIt = m_allObjects.begin(); firstIt != m_allObjects.end(); ++firstIt) {
-    for (auto secIt = m_allObjects.begin(); secIt != m_allObjects.end(); ++secIt) {
+    for (auto secIt = firstIt; secIt != m_allObjects.end(); ++secIt) {
       if (firstIt == secIt) continue;
 
       m_checkFunc(firstIt->second, secIt->second); // COULDDO: ipmlement usage of return type for something.

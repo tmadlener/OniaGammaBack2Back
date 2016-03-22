@@ -4,6 +4,7 @@
 #include "OniaGammaBack2Back/LowEnergyPhotons/interface/PairWiseChecker.h"
 
 #include "DataFormats/EgammaCandidates/interface/Conversion.h"
+#include "DataFormats/Candidate/interface/Candidate.h"
 
 #include <vector>
 
@@ -26,7 +27,7 @@ struct DoubleMassWindowCO {
   DoubleMassWindowCO(const reco::Conversion& conversion) : m_p4(conversion.refittedPair4Momentum()) {;}
 
   DoubleMassWindowCO() = delete; /**< should not be default constructible. */
-  ~DoubleMassWindowCO() = default; /**< should do. TODO: revise this again after object is finished. */
+  ~DoubleMassWindowCO() = default; /**< all allocations should be managed. */
 
   /** MANDATORY veto function. true if any of the two mass windows vetoes. */
   bool veto() const { return ( this->veto1() || this->veto2() ); }
@@ -65,7 +66,7 @@ template<typename CheckObject>
 void DoubleMassWindowChecker<CheckObject>::operator()(CheckObject& obj1, CheckObject& obj2)
 {
   double invMass = (obj1.m_p4 + obj2.m_p4).M();
-  if (invMass > m_window1[0]  && invMass < m_window1[1]) {
+  if (invMass > m_window1[0] && invMass < m_window1[1]) {
     obj1.m_massWindow1.push_back(true);
     obj2.m_massWindow1.push_back(true);
   }
